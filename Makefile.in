@@ -14,22 +14,22 @@ bindir = $(DESTDIR)$(exec_prefix)/bin
 SOURCES=cloudfsapi.c cloudfuse.c
 HEADERS=cloudfsapi.h
 
-all: cloudfuse
+all: hubicfuse
 
 install: all $(bindir)
-	$(INSTALL) cloudfuse $(bindir)/cloudfuse
+	$(INSTALL) hubicfuse $(bindir)/hubicfuse
 
 uninstall:
-	/bin/rm -f $(bindir)/cloudfuse
+	/bin/rm -f $(bindir)/hubicfuse
 
 $(bindir):
 	$(MKDIR_P) $(bindir)
 
-cloudfuse: $(SOURCES) $(HEADERS)
-	$(CC) $(CFLAGS) -o cloudfuse $(SOURCES) $(LIBS)
+hubicfuse: $(SOURCES) $(HEADERS)
+	$(CC) $(CFLAGS) -o hubicfuse $(SOURCES) $(LIBS)
 
 clean:
-	/bin/rm -f cloudfuse
+	/bin/rm -f hubicfuse
 
 distclean: clean
 	/bin/rm -f Makefile config.h config.status config.cache config.log \
