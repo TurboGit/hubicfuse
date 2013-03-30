@@ -13,6 +13,9 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <libxml/tree.h>
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <json/json.h>
 #include "cloudfsapi.h"
 #include "config.h"
 
@@ -183,23 +186,6 @@ static int send_request(char *method, const char *path, FILE *fp, xmlParserCtxtP
       xmlCtxtResetPush(xmlctx, NULL, 0, NULL, NULL);
   }
   return response;
-}
-
-static size_t header_dispatch(void *ptr, size_t size, size_t nmemb, void *stream)
-{
-  char *header = (char *)alloca(size * nmemb + 1);
-  char *head = (char *)alloca(size * nmemb + 1);
-  char *value = (char *)alloca(size * nmemb + 1);
-  memcpy(header, (char *)ptr, size * nmemb);
-  header[size * nmemb] = '\0';
-  if (sscanf(header, "%[^:]: %[^\r\n]", head, value) == 2)
-  {
-    if (!strncasecmp(head, "x-auth-token", size * nmemb))
-      strncpy(storage_token, value, sizeof(storage_token));
-    if (!strncasecmp(head, "x-storage-url", size * nmemb))
-      strncpy(storage_url, value, sizeof(storage_url));
-  }
-  return size * nmemb;
 }
 
 /*
@@ -467,7 +453,7 @@ void cloudfs_verify_ssl(int vrfy)
 
 static struct {
   char username[MAX_HEADER_SIZE], password[MAX_HEADER_SIZE],
-       tenant[MAX_HEADER_SIZE], authurl[MAX_URL_SIZE], use_snet;
+       tenant[MAX_HEADER_SIZE], authurl[MAX_URL_SIZE], use_snet, ovh;
 } reconnect_args;
 
 void cloudfs_set_credentials(char *username, char *tenant, char *password, char *authurl, int use_snet)
@@ -479,28 +465,64 @@ void cloudfs_set_credentials(char *username, char *tenant, char *password, char 
   reconnect_args.use_snet = use_snet;
 }
 
+struct htmlString {
+	char *text;
+	size_t size;
+};
+
+static size_t writefunc_string(void *contents, size_t size, size_t nmemb, void *data)
+{
+	struct htmlString *mem = (struct htmlString *) data;
+	size_t realsize = size * nmemb;
+	mem->text = realloc(mem->text, mem->size + realsize + 1);
+	if (mem->text == NULL) { /* out of memory! */ 
+		perror(__FILE__);
+		exit(EXIT_FAILURE);
+	}
+
+	memcpy(&(mem->text[mem->size]), contents, realsize);
+	mem->size += realsize;
+	return realsize;
+}
+
+char* htmlStringGet(CURL *curl)
+{
+	struct htmlString chunk;
+	chunk.text = malloc(sizeof(char));
+	chunk.size = 0;
+
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
+	do {
+		curl_easy_perform(curl);
+	} while (chunk.size == 0);
+	
+	chunk.text[chunk.size] = '\0';
+	return chunk.text;
+}
+
+/* thanks to http://devenix.wordpress.com */
+char *unbase64(unsigned char *input, int length)
+{
+	BIO *b64, *bmem;
+	
+	char *buffer = (char *)malloc(length);
+	memset(buffer, 0, length);
+
+	b64 = BIO_new(BIO_f_base64());
+	bmem = BIO_new_mem_buf(input, length);
+	bmem = BIO_push(b64, bmem);
+	BIO_set_flags(bmem, BIO_FLAGS_BASE64_NO_NL);
+
+	BIO_read(bmem, buffer, length);
+
+	BIO_free_all(bmem);
+
+	return buffer;
+}
+
 int cloudfs_connect()
 {
   long response = -1;
-
-  xmlNode *top_node = NULL, *service_node = NULL, *endpoint_node = NULL;
-  xmlParserCtxtPtr xmlctx = NULL;
-
-  char *postdata;
-  if (reconnect_args.tenant[0])
-  {
-      int count = asprintf(&postdata,
-         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
-         "<auth xmlns=\"http://docs.openstack.org/identity/api/v2.0\" tenantName=\"%s\">"
-         "<passwordCredentials username=\"%s\" password=\"%s\"/>"
-         "</auth>",
-         reconnect_args.tenant, reconnect_args.username, reconnect_args.password);
-      if (count < 0)
-      {
-        debugf("Unable to asprintf");
-        abort();
-      }
-  }
 
   pthread_mutex_lock(&pool_mut);
   debugf("Authenticating...");
@@ -508,30 +530,8 @@ int cloudfs_connect()
 
   CURL *curl = curl_easy_init();
 
-  curl_slist *headers = NULL;
-  if (reconnect_args.tenant[0])
-  {
-    add_header(&headers, "Content-Type", "application/xml");
-    add_header(&headers, "Accept", "application/xml");
-
-    curl_easy_setopt(curl, CURLOPT_POST, 1);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postdata);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(postdata));
-
-    xmlctx = xmlCreatePushParserCtxt(NULL, NULL, "", 0, NULL);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, xmlctx);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &xml_dispatch);
-  }
-  else
-  {
-    add_header(&headers, "X-Auth-User", reconnect_args.username);
-    add_header(&headers, "X-Auth-Key", reconnect_args.password);
-  }
-
   curl_easy_setopt(curl, CURLOPT_VERBOSE, debug);
-  curl_easy_setopt(curl, CURLOPT_URL, reconnect_args.authurl);
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &header_dispatch);
+
   curl_easy_setopt(curl, CURLOPT_USERAGENT, USER_AGENT);
   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1);
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_ssl);
@@ -540,79 +540,83 @@ int cloudfs_connect()
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10);
   curl_easy_setopt(curl, CURLOPT_FORBID_REUSE, 1);
 
-  curl_easy_perform(curl);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writefunc_string);
+
+	/* Step 1: get the id */
+  curl_easy_setopt(curl, CURLOPT_URL, "https://ws.ovh.com/sessionHandler/r4/rest.dispatcher/getAnonymousSession");
+  
+  char *json_str = htmlStringGet(curl);
+  struct json_object *json_obj;
+  json_obj = json_tokener_parse(json_str);
+  free(json_str);
+  
+  char id[MAX_URL_SIZE];
+  strcpy(id, json_object_get_string(json_object_object_get(json_object_object_get(json_object_object_get(json_obj, "answer"), "session"), "id")));
+  json_object_put(json_obj);
+  // printf("id=%s\n", id);
+  
+  /* Step 2: get the nic and the hubicId*/
+  char url2[MAX_URL_SIZE];
+  strcpy(url2, "https://ws.ovh.com/hubic/r5/rest.dispatcher/getHubics?params={%22sessionId%22:%22");
+  strcat(url2, id);
+  strcat(url2, "%22,%22email%22:%22");
+  strcat(url2, reconnect_args.username);
+  strcat(url2, "%22}");
+  
+  curl_easy_setopt(curl, CURLOPT_URL, url2);
+  json_str = htmlStringGet(curl);
+  json_obj = json_tokener_parse(json_str);
+  free(json_str);
+  
+  char nic[MAX_URL_SIZE], hubic_id[MAX_URL_SIZE];
+  strcpy(nic, json_object_get_string(json_object_object_get(json_object_array_get_idx(json_object_object_get(json_obj, "answer"),0), "nic")));
+  strcpy(hubic_id, json_object_get_string(json_object_object_get(json_object_array_get_idx(json_object_object_get(json_obj, "answer"),0), "id")));
+  json_object_put(json_obj);
+  // printf("nic=%s\nhubicId=%s\n", nic, hubic_id);
+  
+  /* Step 3: get the sessionId */
+  char url3[MAX_URL_SIZE];
+  strcpy(url3, "https://ws.ovh.com/sessionHandler/r4/rest.dispatcher/login?params={%22login%22:%22");
+  strcat(url3, nic);
+  strcat(url3, "%22,%22password%22:%22");
+  strcat(url3, reconnect_args.password);
+  strcat(url3, "%22,%22context%22:%22hubic%22}");
+  
+  curl_easy_setopt(curl, CURLOPT_URL, url3);
+  json_str = htmlStringGet(curl);
+  json_obj = json_tokener_parse(json_str);
+  free(json_str);
+  
+  char session_id[MAX_URL_SIZE];
+  strcpy(session_id, json_object_get_string(json_object_object_get(json_object_object_get(json_object_object_get(json_obj, "answer"), "session"), "id")));
+  // printf("sessionID=%s\n", session_id);
+  
+  /* Step 4: get the credentials */
+  char url4[MAX_URL_SIZE];
+  strcpy(url4, "https://ws.ovh.com/hubic/r5/rest.dispatcher/getHubic?params={%22sessionId%22:%22");
+  strcat(url4, session_id);
+  strcat(url4, "%22,%22hubicId%22:%22");
+  strcat(url4, hubic_id);
+  strcat(url4, "%22}");
+  
+  curl_easy_setopt(curl, CURLOPT_URL, url4);
+  json_str = htmlStringGet(curl);
+  json_obj = json_tokener_parse(json_str);
+  free(json_str);
+  
+  char username[MAX_URL_SIZE];
+  strcpy(username, json_object_get_string(json_object_object_get(json_object_object_get(json_object_object_get(json_obj, "answer"), "credentials"), "username")));
+  strcpy(storage_token, json_object_get_string(json_object_object_get(json_object_object_get(json_object_object_get(json_obj, "answer"), "credentials"), "secret")));
+  
+  char *decode_username = unbase64(username, strlen(username));
+  strcpy(storage_url, decode_username);
+  // printf("username=%s\nsecret=%s\n",storage_url, storage_token);
+  free(decode_username);
+
   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response);
-  curl_slist_free_all(headers);
+  
   curl_easy_cleanup(curl);
 
-  if (reconnect_args.tenant[0])
-  {
-    free(postdata);
-    xmlParseChunk(xmlctx, "", 0, 1);
-    if (xmlctx->wellFormed && response >= 200 && response < 300)
-    {
-      xmlNode *root_element = xmlDocGetRootElement(xmlctx->myDoc);
-      for (top_node = root_element->children; top_node; top_node = top_node->next)
-      {
-        if ((top_node->type == XML_ELEMENT_NODE) &&
-           (!strcasecmp((const char *)top_node->name, "serviceCatalog")))
-        {
-          for (service_node = top_node->children; service_node; service_node = service_node->next)
-            if ((service_node->type == XML_ELEMENT_NODE) &&
-               (!strcasecmp((const char *)service_node->name, "service")))
-            {
-              xmlChar * serviceType = xmlGetProp(service_node, "type");
-              int isObjectStore = serviceType && !strcasecmp(serviceType, "object-store");
-              xmlFree(serviceType);
-
-              if (!isObjectStore) continue;
-
-              for (endpoint_node = service_node->children; endpoint_node; endpoint_node = endpoint_node->next)
-                if ((endpoint_node->type == XML_ELEMENT_NODE) &&
-                   (!strcasecmp((const char *)endpoint_node->name, "endpoint")))
-                {
-                  xmlChar * publicURL = xmlGetProp(endpoint_node, "publicURL");
-                  if (publicURL)
-                  {
-                    char copy = 1;
-                    if (storage_url[0])
-                    {
-                      if (strstr(publicURL, "cdn"))
-                      {
-                        copy = 0;
-                        debugf("Warning - found multiple object-store services; keeping %s, ignoring %s",
-                                                     storage_url, publicURL);
-                      }
-                      else
-                        debugf("Warning - found multiple object-store services; using %s instead of %s",
-                                                     publicURL, storage_url);
-                    }
-                    if (copy)
-                      strncpy(storage_url, publicURL, sizeof(storage_url));
-                  }
-                  xmlFree(publicURL);
-                }
-            }
-        }
-
-        if ((top_node->type == XML_ELEMENT_NODE) &&
-            (!strcasecmp((const char *)top_node->name, "token")))
-        {
-          xmlChar * tokenId = xmlGetProp(top_node, "id");
-          if (tokenId)
-          {
-            if (storage_token[0])
-              debugf("Warning - found multiple authentication tokens.");
-            strncpy(storage_token, tokenId, sizeof(storage_token));
-          }
-          xmlFree(tokenId);
-        }
-      }
-    }
-    xmlFreeParserCtxt(xmlctx);
-  }
-  if (reconnect_args.use_snet && storage_url[0])
-    rewrite_url_snet(storage_url);
   pthread_mutex_unlock(&pool_mut);
   return (response >= 200 && response < 300 && storage_token[0] && storage_url[0]);
 }
