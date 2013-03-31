@@ -50,15 +50,6 @@ static unsigned long thread_id()
 }
 #endif
 
-static void rewrite_url_snet(char *url)
-{
-  char protocol[MAX_URL_SIZE];
-  char rest[MAX_URL_SIZE];
-  sscanf(url, "%[a-z]://%s", protocol, rest);
-  if (strncasecmp(rest, "snet-", 5))
-    sprintf(url, "%s://snet-%s", protocol, rest);
-}
-
 static size_t xml_dispatch(void *ptr, size_t size, size_t nmemb, void *stream)
 {
   xmlParseChunk((xmlParserCtxtPtr)stream, (char *)ptr, size * nmemb, 0);
@@ -452,17 +443,13 @@ void cloudfs_verify_ssl(int vrfy)
 }
 
 static struct {
-  char username[MAX_HEADER_SIZE], password[MAX_HEADER_SIZE],
-       tenant[MAX_HEADER_SIZE], authurl[MAX_URL_SIZE], use_snet, ovh;
+  char username[MAX_HEADER_SIZE], password[MAX_HEADER_SIZE];
 } reconnect_args;
 
-void cloudfs_set_credentials(char *username, char *tenant, char *password, char *authurl, int use_snet)
+void cloudfs_set_credentials(char *username, char *password)
 {
   strncpy(reconnect_args.username, username, sizeof(reconnect_args.username));
-  strncpy(reconnect_args.tenant, tenant, sizeof(reconnect_args.tenant));
   strncpy(reconnect_args.password, password, sizeof(reconnect_args.password));
-  strncpy(reconnect_args.authurl, authurl, sizeof(reconnect_args.authurl));
-  reconnect_args.use_snet = use_snet;
 }
 
 struct htmlString {
