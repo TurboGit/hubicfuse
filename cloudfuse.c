@@ -21,6 +21,8 @@
 #define OPTION_SIZE 1024
 
 static int cache_timeout;
+//long segment_size;
+//long segment_above;
 
 typedef struct dir_cache
 {
@@ -485,6 +487,8 @@ static struct options {
     char region[OPTION_SIZE];
     char use_snet[OPTION_SIZE];
     char verify_ssl[OPTION_SIZE];
+    char segment_size[OPTION_SIZE];
+    char segment_above[OPTION_SIZE];
 } options = {
     .username = "",
     .password = "",
@@ -494,6 +498,8 @@ static struct options {
     .region = "",
     .use_snet = "false",
     .verify_ssl = "true",
+    .segment_size = "1073741824",
+    .segment_above = "2147483648",
 };
 
 int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs)
@@ -506,7 +512,9 @@ int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs
       sscanf(arg, " authurl = %[^\r\n ]", options.authurl) ||
       sscanf(arg, " region = %[^\r\n ]", options.region) ||
       sscanf(arg, " use_snet = %[^\r\n ]", options.use_snet) ||
-      sscanf(arg, " verify_ssl = %[^\r\n ]", options.verify_ssl))
+      sscanf(arg, " verify_ssl = %[^\r\n ]", options.verify_ssl) ||
+      sscanf(arg, " segment_above = %[^\r\n ]", options.segment_above) ||
+      sscanf(arg, " segment_size = %[^\r\n ]", options.segment_size))
     return 0;
   if (!strcmp(arg, "-f") || !strcmp(arg, "-d") || !strcmp(arg, "debug"))
     cloudfs_debug(1);
@@ -532,6 +540,9 @@ int main(int argc, char **argv)
 
   cache_timeout = atoi(options.cache_timeout);
 
+  segment_size = atoll(options.segment_size);
+  segment_above = atoll(options.segment_above);
+
   if (!*options.username || !*options.password)
   {
     fprintf(stderr, "Unable to determine username and API key.\n\n");
@@ -546,6 +557,8 @@ int main(int argc, char **argv)
     fprintf(stderr, "  use_snet=[True to use Rackspace ServiceNet for connections]\n");
     fprintf(stderr, "  cache_timeout=[Seconds for directory caching, default 600]\n");
     fprintf(stderr, "  verify_ssl=[False to disable SSL cert verification]\n");
+    fprintf(stderr, "  segment_size=[Size to use when creating DLOs, default 1073741824]\n");
+    fprintf(stderr, "  segment_above=[File size at which to use segments, defult 2147483648]\n");
 
     return 1;
   }

@@ -32,8 +32,6 @@ static int curl_pool_count = 0;
 static int debug = 0;
 static int verify_ssl = 1;
 static int rhel5_mode = 0;
-static long segment_size = 1073741824;
-static long segment_above = 2147483648;
 
 #ifdef HAVE_OPENSSL
 #include <openssl/crypto.h>

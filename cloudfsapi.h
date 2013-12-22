@@ -32,10 +32,13 @@ struct segment_info
     char *seg_base;
 };
 
+long segment_size;
+long segment_above;
+
 void cloudfs_init();
 void cloudfs_set_credentials(char *username, char *tenant, char *password,
                              char *authurl, char *region, int use_snet);
-int cloufds_connect();
+int cloudfs_connect();
 int cloudfs_object_read_fp(const char *path, FILE *fp);
 int cloudfs_object_write_fp(const char *path, FILE *fp);
 int cloudfs_list_directory(const char *path, dir_entry **);
