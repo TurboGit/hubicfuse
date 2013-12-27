@@ -100,9 +100,14 @@ static void add_header(curl_slist **headers, const char *name,
 static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
 {
     struct segment_info *info = (struct segment_info *)userp;
+    size_t mem = size * nmemb;
 
-    size_t amt_read = fread(ptr, 1, info->size, info->fp);
+    if (mem < 1 || info->size < 1)
+      return 0;
+
+    size_t amt_read = fread(ptr, 1, info->size < mem ? info->size : mem, info->fp);
     info->size -= amt_read;
+    
     return amt_read;
 }
 
