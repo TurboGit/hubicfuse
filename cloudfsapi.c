@@ -24,6 +24,10 @@
 
 #define REQUEST_RETRIES 4
 
+// 64 bit time + nanoseconds
+#define TIME_CHARS 32
+
+
 static char storage_url[MAX_URL_SIZE];
 static char storage_token[MAX_HEADER_SIZE];
 static pthread_mutex_t pool_mut;
@@ -93,9 +97,18 @@ static void add_header(curl_slist **headers, const char *name,
   *headers = curl_slist_append(*headers, x_header);
 }
 
-static int send_request_size(char *method, const char *path, FILE *fp,
+static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
+{
+    struct segment_info *info = (struct segment_info *)userp;
+
+    size_t amt_read = fread(ptr, 1, info->size, info->fp);
+    info->size -= amt_read;
+    return amt_read;
+}
+
+static int send_request_size(char *method, const char *path, void *fp,
                         xmlParserCtxtPtr xmlctx, curl_slist *extra_headers,
-                        off_t file_size)
+                        off_t file_size, int is_segment)
 {
   char url[MAX_URL_SIZE];
   char *slash;
@@ -155,6 +168,8 @@ static int send_request_size(char *method, const char *path, FILE *fp,
       curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
       curl_easy_setopt(curl, CURLOPT_INFILESIZE, file_size);
       curl_easy_setopt(curl, CURLOPT_READDATA, fp);
+      if (is_segment)
+        curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
     }
     else if (!strcasecmp(method, "GET"))
     {
@@ -209,7 +224,7 @@ static int send_request(char *method, const char *path, FILE *fp,
     if (fp)
         flen = cloudfs_file_size(fileno(fp));
 
-    return send_request_size(method, path, fp, xmlctx, extra_headers, flen);
+    return send_request_size(method, path, fp, xmlctx, extra_headers, flen, 0);
 
 }
 
@@ -268,6 +283,8 @@ void cloudfs_init()
   }
 }
 
+
+
 void *upload_segment(void *seginfo)
 {
   char seg_path[MAX_URL_SIZE];
@@ -278,8 +295,8 @@ void *upload_segment(void *seginfo)
 
   snprintf(seg_path, MAX_URL_SIZE, "%s%08i", info->seg_base, info->part);
   char *encoded = curl_escape(seg_path, 0);
-  int response = send_request_size("PUT", encoded, info->fp, NULL, NULL,
-      info->size);
+  int response = send_request_size("PUT", encoded, info, NULL, NULL,
+      info->size, 1);
 
   if (!(response >= 200 && response < 300))
     fprintf(stderr, "Segment upload %s failed with response %d", seg_path,
@@ -307,8 +324,16 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
 
     char manifest[MAX_URL_SIZE];
 
-    // TODO: actually set this to now
-    char *meta_mtime = "1386971541.005863";
+    // The best we can do here is to get the current time that way tools that
+    // use the mtime can at least check if the file was changing after now
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
+
+    char string_float[TIME_CHARS];
+    snprintf(string_float, TIME_CHARS, "%lu.%lu", now.tv_sec, now.tv_nsec);
+
+    char meta_mtime[TIME_CHARS];
+    snprintf(meta_mtime, TIME_CHARS, "%f", atof(string_float));
 
     char seg_base[MAX_URL_SIZE];
     char file_path[PATH_MAX];
@@ -352,12 +377,15 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
       pthread_join(threads[i], NULL);
     }
 
+    free(info);
+    free(threads);
+
     char *encoded = curl_escape(path, 0);
     curl_slist *headers = NULL;
     add_header(&headers, "x-object-manifest", manifest);
     add_header(&headers, "x-object-meta-mtime", meta_mtime);
     add_header(&headers, "Content-Length", "0");
-    response = send_request_size("PUT", encoded, NULL, NULL, headers, 0);
+    response = send_request_size("PUT", encoded, NULL, NULL, headers, 0, 0);
     curl_slist_free_all(headers);
 
     curl_free(encoded);
