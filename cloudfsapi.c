@@ -340,15 +340,15 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
     char meta_mtime[TIME_CHARS];
     snprintf(meta_mtime, TIME_CHARS, "%f", atof(string_float));
 
-    char seg_base[MAX_URL_SIZE];
-    char file_path[PATH_MAX];
+    char seg_base[MAX_URL_SIZE] = "";
+    char file_path[PATH_MAX] = "";
     int response;
 
     char *string = strdup(path);
 
     snprintf(seg_base, MAX_URL_SIZE, "%s", strsep(&string, "/"));
 
-    char container[MAX_URL_SIZE];
+    char container[MAX_URL_SIZE] = "";
 
     strncat(container, strsep(&string, "/"),
         MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
