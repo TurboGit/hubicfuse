@@ -102,6 +102,10 @@ BUGS/SHORTCOMINGS:
       cloudfuse won't list more than that many files in a single directory.
     * Symlinks are objects containing the target with content-type
       "application/link".
+    * Deleting a DLO does not delete the segments and updating a DLO leaves
+      the old segments.
+    * Initial file size of DLOs is 0 because the bytes field when listing a
+      container is 0 for DLOs.  After opening the file the size if correct.
 
 
 AWESOME CONTRIBUTORS:
