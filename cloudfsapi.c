@@ -107,7 +107,7 @@ static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
 
     size_t amt_read = fread(ptr, 1, info->size < mem ? info->size : mem, info->fp);
     info->size -= amt_read;
-    
+
     return amt_read;
 }
 
@@ -340,16 +340,37 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
     char meta_mtime[TIME_CHARS];
     snprintf(meta_mtime, TIME_CHARS, "%f", atof(string_float));
 
-    char seg_base[MAX_URL_SIZE];
-    char file_path[PATH_MAX];
+    char seg_base[MAX_URL_SIZE] = "";
+    char file_path[PATH_MAX] = "";
     int response;
 
     char *string = strdup(path);
 
     snprintf(seg_base, MAX_URL_SIZE, "%s", strsep(&string, "/"));
-    char *container = strsep(&string, "/");
+
+    char container[MAX_URL_SIZE] = "";
+
+    strncat(container, strsep(&string, "/"),
+        MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
+
     char *object = strsep(&string, "/");
 
+    char *remstr;
+
+    while (remstr = strsep(&string, "/")) {
+        strncat(container, "/",
+            MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
+        strncat(container, object,
+            MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
+        object = remstr;
+    }
+
+    // create the segments container
+    snprintf(manifest, MAX_URL_SIZE, "%s_segments", container);
+
+    cloudfs_create_directory(manifest);
+
+    // reusing manifest
     snprintf(manifest, MAX_URL_SIZE, "%s_segments/%s/%s/%ld/%ld/", container,
         object, meta_mtime, flen, segment_size);
 
