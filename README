@@ -106,6 +106,7 @@ BUGS/SHORTCOMINGS:
       the old segments.
     * Initial file size of DLOs is 0 because the bytes field when listing a
       container is 0 for DLOs.  After opening the file the size if correct.
+    * You can't view containers from other tenants.
 
 
 AWESOME CONTRIBUTORS:
