@@ -1,4 +1,5 @@
-This fork provides symlinks and Swift DLO support.
+This fork provides symlinks, the ability to see other tenant's containers and
+Swift DLO support:
     http://docs.openstack.org/developer/swift/overview_large_objects.html
 
 Cloudfuse is a FUSE application which provides access to Rackspace's
@@ -50,6 +51,8 @@ USE:
         verify_ssl=[False to disable SSL cert verification]
         segment_size=[Size to use when creating DLOs, default 1073741824]
         segment_above=[File size at which to use segments, defult 2147483648]
+        storage_url=[Storage URL for other tenant to view container]
+        container=[Public container to view of tenant specified by storage_url]
 
     For authenticating with Rackspace's cloud, at minimum "username" and
     "api_key" must be set.
