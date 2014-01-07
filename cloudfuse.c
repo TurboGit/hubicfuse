@@ -489,6 +489,8 @@ static struct options {
     char verify_ssl[OPTION_SIZE];
     char segment_size[OPTION_SIZE];
     char segment_above[OPTION_SIZE];
+    char storage_url[OPTION_SIZE];
+    char container[OPTION_SIZE];
 } options = {
     .username = "",
     .password = "",
@@ -500,6 +502,8 @@ static struct options {
     .verify_ssl = "true",
     .segment_size = "1073741824",
     .segment_above = "2147483648",
+    .storage_url = "",
+    .container = "",
 };
 
 int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs)
@@ -514,7 +518,9 @@ int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs
       sscanf(arg, " use_snet = %[^\r\n ]", options.use_snet) ||
       sscanf(arg, " verify_ssl = %[^\r\n ]", options.verify_ssl) ||
       sscanf(arg, " segment_above = %[^\r\n ]", options.segment_above) ||
-      sscanf(arg, " segment_size = %[^\r\n ]", options.segment_size))
+      sscanf(arg, " segment_size = %[^\r\n ]", options.segment_size) ||
+      sscanf(arg, " storage_url = %[^\r\n ]", options.storage_url) ||
+      sscanf(arg, " container = %[^\r\n ]", options.container))
     return 0;
   if (!strcmp(arg, "-f") || !strcmp(arg, "-d") || !strcmp(arg, "debug"))
     cloudfs_debug(1);
@@ -542,6 +548,8 @@ int main(int argc, char **argv)
 
   segment_size = atoll(options.segment_size);
   segment_above = atoll(options.segment_above);
+  override_storage_url = options.storage_url;
+  public_container = options.container;
 
   if (!*options.username || !*options.password)
   {
@@ -559,6 +567,8 @@ int main(int argc, char **argv)
     fprintf(stderr, "  verify_ssl=[False to disable SSL cert verification]\n");
     fprintf(stderr, "  segment_size=[Size to use when creating DLOs, default 1073741824]\n");
     fprintf(stderr, "  segment_above=[File size at which to use segments, defult 2147483648]\n");
+    fprintf(stderr, "  storage_url=[Storage URL for other tenant to view container]\n");
+    fprintf(stderr, "  container=[Public container to view of tenant specified by storage_url]\n");
 
     return 1;
   }

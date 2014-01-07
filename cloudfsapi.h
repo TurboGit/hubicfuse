@@ -35,6 +35,9 @@ struct segment_info
 long segment_size;
 long segment_above;
 
+char *override_storage_url;
+char *public_container;
+
 void cloudfs_init();
 void cloudfs_set_credentials(char *username, char *tenant, char *password,
                              char *authurl, char *region, int use_snet);

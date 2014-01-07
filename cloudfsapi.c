@@ -22,7 +22,7 @@
 #define RHEL5_LIBCURL_VERSION 462597
 #define RHEL5_CERTIFICATE_FILE "/etc/pki/tls/certs/ca-bundle.crt"
 
-#define REQUEST_RETRIES 4
+#define REQUEST_RETRIES 1
 
 // 64 bit time + nanoseconds
 #define TIME_CHARS 32
@@ -244,7 +244,9 @@ static size_t header_dispatch(void *ptr, size_t size, size_t nmemb, void *stream
   {
     if (!strncasecmp(head, "x-auth-token", size * nmemb))
       strncpy(storage_token, value, sizeof(storage_token));
-    if (!strncasecmp(head, "x-storage-url", size * nmemb))
+    if (override_storage_url[0])
+      strncpy(storage_url, override_storage_url, sizeof(storage_url));
+    else if (!strncasecmp(head, "x-storage-url", size * nmemb))
       strncpy(storage_url, value, sizeof(storage_url));
   }
   return size * nmemb;
@@ -287,8 +289,6 @@ void cloudfs_init()
     setenv("NSS_STRICT_NOFORK", "DISABLED", 1);
   }
 }
-
-
 
 void *upload_segment(void *seginfo)
 {
@@ -498,8 +498,9 @@ int cloudfs_list_directory(const char *path, dir_entry **dir_list)
   }
 
   response = send_request("GET", container, NULL, xmlctx, NULL);
-  xmlParseChunk(xmlctx, "", 0, 1);
-  if (xmlctx->wellFormed && response >= 200 && response < 300)
+  if (response >= 200 && response < 300)
+    xmlParseChunk(xmlctx, "", 0, 1);
+  if (response >= 200 && response < 300 && xmlctx->wellFormed )
   {
     xmlNode *root_element = xmlDocGetRootElement(xmlctx->myDoc);
     for (onode = root_element->children; onode; onode = onode->next)
@@ -576,6 +577,26 @@ int cloudfs_list_directory(const char *path, dir_entry **dir_list)
         debugf("unknown element: %s", onode->name);
       }
     }
+    retval = 1;
+  }
+  else if (override_storage_url[0]){
+    entry_count = 1;
+
+    dir_entry *de = (dir_entry *)malloc(sizeof(dir_entry));
+    //de->name = "osdc_public_data";
+    de->name = strdup(public_container);
+    struct tm last_modified;
+    strptime("1388434648.01238", "%FT%T", &last_modified);
+    de->last_modified = mktime(&last_modified);
+    de->content_type = strdup("application/directory");
+    if (asprintf(&(de->full_name), "%s/%s", path, de->name) < 0)
+      de->full_name = NULL;
+
+    de->isdir = 1;
+    de->islink = 0;
+    de->size = 4096;
+    de->next = *dir_list;
+    *dir_list = de;
     retval = 1;
   }
 
