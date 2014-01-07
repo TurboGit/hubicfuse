@@ -21,8 +21,6 @@
 #define OPTION_SIZE 1024
 
 static int cache_timeout;
-//long segment_size;
-//long segment_above;
 
 typedef struct dir_cache
 {
