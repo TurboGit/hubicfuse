@@ -497,7 +497,11 @@ int cloudfs_list_directory(const char *path, dir_entry **dir_list)
     curl_free(encoded_object);
   }
 
-  response = send_request("GET", container, NULL, xmlctx, NULL);
+  if ((!strcmp(path, "") || !strcmp(path, "/")) && *override_storage_url)
+    response = 404;
+  else
+    response = send_request("GET", container, NULL, xmlctx, NULL);
+
   if (response >= 200 && response < 300)
     xmlParseChunk(xmlctx, "", 0, 1);
   if (response >= 200 && response < 300 && xmlctx->wellFormed )
@@ -579,7 +583,7 @@ int cloudfs_list_directory(const char *path, dir_entry **dir_list)
     }
     retval = 1;
   }
-  else if (override_storage_url[0]){
+  else if (*override_storage_url){
     entry_count = 1;
 
     dir_entry *de = (dir_entry *)malloc(sizeof(dir_entry));

@@ -549,7 +549,8 @@ int main(int argc, char **argv)
   override_storage_url = options.storage_url;
   public_container = options.container;
 
-  if (!*options.username || !*options.password)
+  if (!*options.username || !*options.password  ||
+    (!*options.storage_url ^ !*options.container))
   {
     fprintf(stderr, "Unable to determine username and API key.\n\n");
     fprintf(stderr, "These can be set either as mount options or in"
