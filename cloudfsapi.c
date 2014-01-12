@@ -168,8 +168,6 @@ static int send_request_size(char *method, const char *path, void *fp,
     }
     else if (!strcasecmp(method, "PUT") && fp)
     {
-      // your zealotry will destroy us all!
-      //rewind(fp);
       curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
       curl_easy_setopt(curl, CURLOPT_INFILESIZE, file_size);
       curl_easy_setopt(curl, CURLOPT_READDATA, fp);
@@ -583,11 +581,10 @@ int cloudfs_list_directory(const char *path, dir_entry **dir_list)
     }
     retval = 1;
   }
-  else if (*override_storage_url){
+  else if ((!strcmp(path, "") || !strcmp(path, "/")) && *override_storage_url) {
     entry_count = 1;
 
     dir_entry *de = (dir_entry *)malloc(sizeof(dir_entry));
-    //de->name = "osdc_public_data";
     de->name = strdup(public_container);
     struct tm last_modified;
     strptime("1388434648.01238", "%FT%T", &last_modified);
