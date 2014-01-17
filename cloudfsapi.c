@@ -22,7 +22,7 @@
 #define RHEL5_LIBCURL_VERSION 462597
 #define RHEL5_CERTIFICATE_FILE "/etc/pki/tls/certs/ca-bundle.crt"
 
-#define REQUEST_RETRIES 1
+#define REQUEST_RETRIES 4
 
 // 64 bit time + nanoseconds
 #define TIME_CHARS 32
