@@ -97,7 +97,8 @@ static void add_header(curl_slist **headers, const char *name,
   *headers = curl_slist_append(*headers, x_header);
 }
 
-static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
+static size_t rw_callback(size_t (*rw)(void*, size_t, size_t, FILE*), void *ptr,
+        size_t size, size_t nmemb, void *userp)
 {
     struct segment_info *info = (struct segment_info *)userp;
     size_t mem = size * nmemb;
@@ -105,13 +106,29 @@ static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
     if (mem < 1 || info->size < 1)
       return 0;
 
-    size_t amt_read = fread(ptr, 1, info->size < mem ? info->size : mem, info->fp);
+    size_t amt_read = rw(ptr, 1, info->size < mem ? info->size : mem, info->fp);
     info->size -= amt_read;
 
     return amt_read;
 }
 
-static int send_request_size(char *method, const char *path, void *fp,
+size_t fwrite2(void *ptr, size_t size, size_t nmemb, FILE *filep)
+{
+    return fwrite((const void*)ptr, size, nmemb, filep);
+}
+
+static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
+{
+    return rw_callback(fread, ptr, size, nmemb, userp);
+}
+
+static size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userp)
+{
+   return rw_callback(fwrite2, ptr, size, nmemb, userp);
+}
+
+
+static int send_request_size(const char *method, const char *path, void *fp,
                         xmlParserCtxtPtr xmlctx, curl_slist *extra_headers,
                         off_t file_size, int is_segment)
 {
@@ -298,7 +315,8 @@ void *upload_segment(void *seginfo)
 
   snprintf(seg_path, MAX_URL_SIZE, "%s%08i", info->seg_base, info->part);
   char *encoded = curl_escape(seg_path, 0);
-  int response = send_request_size("PUT", encoded, info, NULL, NULL,
+
+  int response = send_request_size(info->method, encoded, info, NULL, NULL,
       info->size, 1);
 
   if (!(response >= 200 && response < 300))
@@ -308,6 +326,39 @@ void *upload_segment(void *seginfo)
   curl_free(encoded);
   fclose(info->fp);
   pthread_exit(NULL);
+}
+
+void run_segment_threads(const char *method, int segments, int full_segments, int remaining,
+        FILE *fp, char *seg_base)
+{
+    char file_path[PATH_MAX] = "";
+    struct segment_info *info = (struct segment_info *)
+            malloc(segments * sizeof(struct segment_info));
+
+    pthread_t *threads = (pthread_t *)malloc(segments * sizeof(pthread_t));
+#ifdef __linux__
+    snprintf(file_path, PATH_MAX, "/proc/self/fd/%d", fileno(fp));
+#else
+    //TODO: I haven't actually tested this
+    if (fcntl(fileno(fp), F_GETPATH, file_path) == -1)
+      fprintf(stderr, "couldn't get the path name\n");
+#endif
+
+    int i;
+    for (i = 0; i < segments; i++) {
+      info[i].method = method;
+      info[i].fp = fopen(file_path, "r");
+      info[i].part = i;
+      info[i].size = i < full_segments ? segment_size : remaining;
+      info[i].seg_base = seg_base;
+      pthread_create(&threads[i], NULL, upload_segment, (void *)&(info[i]));
+    }
+
+    for (i = 0; i < segments; i++) {
+      pthread_join(threads[i], NULL);
+    }
+    free(info);
+    free(threads);
 }
 
 int cloudfs_object_read_fp(const char *path, FILE *fp)
@@ -339,7 +390,6 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
     snprintf(meta_mtime, TIME_CHARS, "%f", atof(string_float));
 
     char seg_base[MAX_URL_SIZE] = "";
-    char file_path[PATH_MAX] = "";
     int response;
 
     char *string = strdup(path);
@@ -376,33 +426,9 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
 
     free(string);
 
-    struct segment_info *info = (struct segment_info *)
-            malloc(segments * sizeof(struct segment_info));
+    const char *put = "PUT";
 
-    pthread_t *threads = (pthread_t *)malloc(segments * sizeof(pthread_t));
-
-#ifdef __linux__
-    snprintf(file_path, PATH_MAX, "/proc/self/fd/%d", fileno(fp));
-#else
-    //TODO: I haven't actually tested this
-    if (fcntl(fileno(fp), F_GETPATH, file_path) == -1)
-      fprintf(stderr, "couldn't get the path name\n");
-#endif
-
-    for (i = 0; i < segments; i++) {
-      info[i].fp = fopen(file_path, "r");
-      info[i].part = i;
-      info[i].size = i < full_segments ? segment_size : remaining;
-      info[i].seg_base = seg_base;
-      pthread_create(&threads[i], NULL, upload_segment, (void *)&(info[i]));
-    }
-
-    for (i = 0; i < segments; i++) {
-      pthread_join(threads[i], NULL);
-    }
-
-    free(info);
-    free(threads);
+    run_segment_threads(put, segments, full_segments, remaining, fp, seg_base);
 
     char *encoded = curl_escape(path, 0);
     curl_slist *headers = NULL;

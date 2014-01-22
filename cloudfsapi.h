@@ -30,6 +30,7 @@ struct segment_info
     int part;
     long size;
     char *seg_base;
+    const char *method;
 };
 
 long segment_size;
