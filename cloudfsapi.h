@@ -29,6 +29,7 @@ struct segment_info
     FILE *fp;
     int part;
     long size;
+    long segment_size;
     char *seg_base;
     const char *method;
 };

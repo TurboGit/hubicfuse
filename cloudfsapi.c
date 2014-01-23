@@ -193,7 +193,12 @@ static int send_request_size(const char *method, const char *path, void *fp,
     }
     else if (!strcasecmp(method, "GET"))
     {
-      if (fp)
+      if (is_segment)
+      {
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+      }
+      else if (fp)
       {
         rewind(fp); // make sure the file is ready for a-writin'
         fflush(fp);
@@ -311,7 +316,7 @@ void *upload_segment(void *seginfo)
   struct segment_info *info;
   info = (struct segment_info *)seginfo;
 
-  fseek(info->fp, info->part * segment_size, SEEK_SET);
+  fseek(info->fp, info->part * info->segment_size, SEEK_SET);
 
   snprintf(seg_path, MAX_URL_SIZE, "%s%08i", info->seg_base, info->part);
   char *encoded = curl_escape(seg_path, 0);
@@ -324,12 +329,14 @@ void *upload_segment(void *seginfo)
          response);
 
   curl_free(encoded);
+  fflush(info->fp);
   fclose(info->fp);
   pthread_exit(NULL);
 }
 
+// segment_size is the globabl config variable and size_of_segment is local
 void run_segment_threads(const char *method, int segments, int full_segments, int remaining,
-        FILE *fp, char *seg_base)
+        FILE *fp, char *seg_base, int size_of_segments)
 {
     char file_path[PATH_MAX] = "";
     struct segment_info *info = (struct segment_info *)
@@ -347,9 +354,10 @@ void run_segment_threads(const char *method, int segments, int full_segments, in
     int i;
     for (i = 0; i < segments; i++) {
       info[i].method = method;
-      info[i].fp = fopen(file_path, "r");
+      info[i].fp = fopen(file_path, method[0] == 'G' ? "r+" : "r");
       info[i].part = i;
-      info[i].size = i < full_segments ? segment_size : remaining;
+      info[i].segment_size = size_of_segments;
+      info[i].size = i < full_segments ? size_of_segments : remaining;
       info[i].seg_base = seg_base;
       pthread_create(&threads[i], NULL, upload_segment, (void *)&(info[i]));
     }
@@ -359,6 +367,32 @@ void run_segment_threads(const char *method, int segments, int full_segments, in
     }
     free(info);
     free(threads);
+}
+
+void split_path(const char *path, char *seg_base, char *container,
+        char *object)
+{
+  char *string = strdup(path);
+
+  snprintf(seg_base, MAX_URL_SIZE, "%s", strsep(&string, "/"));
+
+  strncat(container, strsep(&string, "/"),
+      MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
+
+  char *_object = strsep(&string, "/");
+
+  char *remstr;
+
+  while (remstr = strsep(&string, "/")) {
+      strncat(container, "/",
+          MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
+      strncat(container, _object,
+          MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
+      _object = remstr;
+  }
+
+  strncpy(object, _object, MAX_URL_SIZE);
+  free(string);
 }
 
 int cloudfs_object_read_fp(const char *path, FILE *fp)
@@ -376,8 +410,6 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
     int full_segments = flen / segment_size;
     int segments = full_segments + (remaining > 0);
 
-    char manifest[MAX_URL_SIZE];
-
     // The best we can do here is to get the current time that way tools that
     // use the mtime can at least check if the file was changing after now
     struct timespec now;
@@ -390,52 +422,36 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
     snprintf(meta_mtime, TIME_CHARS, "%f", atof(string_float));
 
     char seg_base[MAX_URL_SIZE] = "";
-    int response;
-
-    char *string = strdup(path);
-
-    snprintf(seg_base, MAX_URL_SIZE, "%s", strsep(&string, "/"));
 
     char container[MAX_URL_SIZE] = "";
+    char object[MAX_URL_SIZE] = "";
 
-    strncat(container, strsep(&string, "/"),
-        MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
+    split_path(path, seg_base, container, object);
 
-    char *object = strsep(&string, "/");
-
-    char *remstr;
-
-    while (remstr = strsep(&string, "/")) {
-        strncat(container, "/",
-            MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
-        strncat(container, object,
-            MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
-        object = remstr;
-    }
-
-    // create the segments container
+    char manifest[MAX_URL_SIZE];
     snprintf(manifest, MAX_URL_SIZE, "%s_segments", container);
 
+    // create the segments container
     cloudfs_create_directory(manifest);
 
     // reusing manifest
-    snprintf(manifest, MAX_URL_SIZE, "%s_segments/%s/%s/%ld/%ld/", container,
-        object, meta_mtime, flen, segment_size);
+    snprintf(manifest, MAX_URL_SIZE, "%s_segments/%s/%s/%ld/%ld/",
+        container, object, meta_mtime, flen, segment_size);
 
-    snprintf(seg_base, MAX_URL_SIZE, "%s/%s", seg_base, manifest);
+    char tmp[MAX_URL_SIZE];
+    strncpy(tmp, seg_base, MAX_URL_SIZE);
+    snprintf(seg_base, MAX_URL_SIZE, "%s/%s", tmp, manifest);
 
-    free(string);
-
-    const char *put = "PUT";
-
-    run_segment_threads(put, segments, full_segments, remaining, fp, seg_base);
+    run_segment_threads("PUT", segments, full_segments, remaining, fp,
+            seg_base, segment_size);
 
     char *encoded = curl_escape(path, 0);
     curl_slist *headers = NULL;
     add_header(&headers, "x-object-manifest", manifest);
     add_header(&headers, "x-object-meta-mtime", meta_mtime);
     add_header(&headers, "Content-Length", "0");
-    response = send_request_size("PUT", encoded, NULL, NULL, headers, 0, 0);
+
+    int response = send_request_size("PUT", encoded, NULL, NULL, headers, 0, 0);
     curl_slist_free_all(headers);
 
     curl_free(encoded);
@@ -450,9 +466,83 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
   return (response >= 200 && response < 300);
 }
 
+int is_segmented(const char *seg_path, const char *object)
+{
+  return 0;
+  dir_entry *seg_dir;
+  if (cloudfs_list_directory(seg_path, &seg_dir)) {
+    if (seg_dir->isdir) {
+        do {
+            if (!strncmp(seg_dir->name, object, MAX_URL_SIZE)) {
+                return 1;
+            }
+        } while ((seg_dir = seg_dir->next));
+    }
+  }
+  return 0;
+}
+
 int cloudfs_object_write_fp(const char *path, FILE *fp)
 {
   char *encoded = curl_escape(path, 0);
+  char seg_base[MAX_URL_SIZE] = "";
+
+  char container[MAX_URL_SIZE] = "";
+  char object[MAX_URL_SIZE] = "";
+
+  split_path(path, seg_base, container, object);
+
+  char seg_path[MAX_URL_SIZE];
+  snprintf(seg_path, MAX_URL_SIZE, "%s/%s_segments", seg_base, container);
+
+  if (is_segmented(seg_path, object)) {
+    char manifest[MAX_URL_SIZE];
+    dir_entry *seg_dir;
+
+    snprintf(manifest, MAX_URL_SIZE, "%s/%s", seg_path, object);
+    cloudfs_list_directory(manifest, &seg_dir);
+
+    // snprintf seesaw between manifest and seg_path to get
+    // the total_size and the segment size as well as the actual objects
+    char *timestamp = seg_dir->name;
+    snprintf(seg_path, MAX_URL_SIZE, "%s/%s", manifest, timestamp);
+    cloudfs_list_directory(seg_path, &seg_dir);
+
+    char *str_size = seg_dir->name;
+    snprintf(manifest, MAX_URL_SIZE, "%s/%s", seg_path, str_size);
+    cloudfs_list_directory(manifest, &seg_dir);
+
+    char *str_segment = seg_dir->name;
+    snprintf(seg_path, MAX_URL_SIZE, "%s/%s", manifest, str_segment);
+    cloudfs_list_directory(seg_path, &seg_dir);
+
+    long total_size = strtoll(str_size, NULL, 10);
+    long size_of_segments = strtoll(str_segment, NULL, 10);
+
+    long remaining = total_size % size_of_segments;
+    long full_segments = total_size / size_of_segments;
+    long segments = full_segments + (remaining > 0);
+
+    snprintf(manifest, MAX_URL_SIZE, "%s_segments/%s/%s/%s/%s/",
+        container, object, timestamp, str_size, str_segment);
+
+    char tmp[MAX_URL_SIZE];
+    strncpy(tmp, seg_base, MAX_URL_SIZE);
+    snprintf(seg_base, MAX_URL_SIZE, "%s/%s", tmp, manifest);
+
+    rewind(fp);
+    fflush(fp);
+    if (ftruncate(fileno(fp), 0) < 0)
+    {
+      debugf("ftruncate failed.  I don't know what to do about that.");
+      abort();
+    }
+
+    run_segment_threads("GET", segments, full_segments, remaining, fp,
+            seg_base, size_of_segments);
+    return 1;
+  }
+
   int response = send_request("GET", encoded, fp, NULL, NULL);
   curl_free(encoded);
   fflush(fp);
