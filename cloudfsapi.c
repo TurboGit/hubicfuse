@@ -468,7 +468,6 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
 
 int is_segmented(const char *seg_path, const char *object)
 {
-  return 0;
   dir_entry *seg_dir;
   if (cloudfs_list_directory(seg_path, &seg_dir)) {
     if (seg_dir->isdir) {
