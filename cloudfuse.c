@@ -291,10 +291,29 @@ static int cfs_create(const char *path, mode_t mode, struct fuse_file_info *info
 
 static int cfs_open(const char *path, struct fuse_file_info *info)
 {
-  FILE *temp_file = tmpfile();
+  //FILE *temp_file = tmpfile();
+  FILE *temp_file;// = fopen(file_path, "w+b");
+
+  char tmp_path[PATH_MAX];
+  strncpy(tmp_path, path, PATH_MAX);
+
+  char *pch;
+  while((pch = strchr(tmp_path, '/'))) {
+      *pch = '.';
+  }
+
+  char file_path[PATH_MAX];
+  snprintf(file_path, PATH_MAX, "/tmp/%s", tmp_path);
+
   dir_entry *de = path_info(path);
-  if (!(info->flags & O_WRONLY))
-  {
+
+  if( access(file_path, F_OK) != -1 ) {
+    temp_file = fopen(file_path, "r");
+    update_dir_cache(path, (de ? de->size : 0), 0, 0);
+    // file exists
+  } else if (!(info->flags & O_WRONLY)) {
+    //temp_file = tmpfile();
+    temp_file = fopen(file_path, "w+b");
     if (!cloudfs_object_write_fp(path, temp_file))
     {
       fclose(temp_file);
@@ -302,6 +321,7 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
     }
     update_dir_cache(path, (de ? de->size : 0), 0, 0);
   }
+
   openfile *of = (openfile *)malloc(sizeof(openfile));
   of->fd = dup(fileno(temp_file));
   fclose(temp_file);

@@ -468,9 +468,10 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
 
 int is_segmented(const char *seg_path, const char *object)
 {
+  //return 0;
   dir_entry *seg_dir;
   if (cloudfs_list_directory(seg_path, &seg_dir)) {
-    if (seg_dir->isdir) {
+    if (seg_dir && seg_dir->isdir) {
         do {
             if (!strncmp(seg_dir->name, object, MAX_URL_SIZE)) {
                 return 1;
@@ -536,6 +537,8 @@ int cloudfs_object_write_fp(const char *path, FILE *fp)
       debugf("ftruncate failed.  I don't know what to do about that.");
       abort();
     }
+
+    fprintf(stderr, "\n\nTHE SEGMENTS%s\n\n", seg_base);
 
     run_segment_threads("GET", segments, full_segments, remaining, fp,
             seg_base, size_of_segments);
