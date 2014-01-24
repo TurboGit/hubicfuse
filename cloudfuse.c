@@ -21,6 +21,7 @@
 #define OPTION_SIZE 1024
 
 static int cache_timeout;
+static char *temp_dir;
 
 typedef struct dir_cache
 {
@@ -303,16 +304,35 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
   }
 
   char file_path[PATH_MAX];
-  snprintf(file_path, PATH_MAX, "/tmp/%s", tmp_path);
+  snprintf(file_path, PATH_MAX, "%s/.cloudfuse%ld-%s", temp_dir,
+        (long)getpid(), tmp_path);
 
   dir_entry *de = path_info(path);
 
-  if( access(file_path, F_OK) != -1 ) {
+  if(access(file_path, F_OK) != -1) {
     temp_file = fopen(file_path, "r");
     update_dir_cache(path, (de ? de->size : 0), 0, 0);
     // file exists
   } else if (!(info->flags & O_WRONLY)) {
+    // we need to lock on the filename another process could open the file
+    // while we are writing to it and then only read part of the file
+
+    // duplicate the directory caching datastructure to make the code easier
+    // to understand.
+
+    // each file in the cache needs:
+    //  filename, is_writing, last_closed, is_removing
+    // the first time a file is opened a new entry is created in the cache
+    // setting the filename and is_writing to true.  This check needs to be
+    // wrapped with a lock.
+    //
+    // each time a file is closed we set the last_closed for the file to now
+    // and we check the cache for files whose last
+    // closed is greater than cache_timeout, then start a new thread rming
+    // that file.
+
     //temp_file = tmpfile();
+
     temp_file = fopen(file_path, "w+b");
     if (!cloudfs_object_write_fp(path, temp_file))
     {
@@ -509,6 +529,7 @@ static struct options {
     char segment_above[OPTION_SIZE];
     char storage_url[OPTION_SIZE];
     char container[OPTION_SIZE];
+    char temp_dir[OPTION_SIZE];
 } options = {
     .username = "",
     .password = "",
@@ -522,6 +543,7 @@ static struct options {
     .segment_above = "2147483648",
     .storage_url = "",
     .container = "",
+    .temp_dir = "/tmp/",
 };
 
 int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs)
@@ -538,7 +560,8 @@ int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs
       sscanf(arg, " segment_above = %[^\r\n ]", options.segment_above) ||
       sscanf(arg, " segment_size = %[^\r\n ]", options.segment_size) ||
       sscanf(arg, " storage_url = %[^\r\n ]", options.storage_url) ||
-      sscanf(arg, " container = %[^\r\n ]", options.container))
+      sscanf(arg, " container = %[^\r\n ]", options.container) ||
+      sscanf(arg, " temp_dir = %[^\r\n ]", options.temp_dir))
     return 0;
   if (!strcmp(arg, "-f") || !strcmp(arg, "-d") || !strcmp(arg, "debug"))
     cloudfs_debug(1);
@@ -566,8 +589,11 @@ int main(int argc, char **argv)
 
   segment_size = atoll(options.segment_size);
   segment_above = atoll(options.segment_above);
+
+  // this is ok since main is on the stack during the entire execution
   override_storage_url = options.storage_url;
   public_container = options.container;
+  temp_dir = options.temp_dir;
 
   if (!*options.username || !*options.password  ||
     (!*options.storage_url ^ !*options.container))
@@ -588,6 +614,7 @@ int main(int argc, char **argv)
     fprintf(stderr, "  segment_above=[File size at which to use segments, defult 2147483648]\n");
     fprintf(stderr, "  storage_url=[Storage URL for other tenant to view container]\n");
     fprintf(stderr, "  container=[Public container to view of tenant specified by storage_url]\n");
+    fprintf(stderr, "  temp_dir=[Directory to store temp files]\n");
 
     return 1;
   }
