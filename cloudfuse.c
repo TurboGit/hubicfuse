@@ -331,9 +331,9 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
     // closed is greater than cache_timeout, then start a new thread rming
     // that file.
 
-    //temp_file = tmpfile();
+    temp_file = tmpfile();
 
-    temp_file = fopen(file_path, "w+b");
+    //temp_file = fopen(file_path, "w+b");
     if (!cloudfs_object_write_fp(path, temp_file))
     {
       fclose(temp_file);

@@ -27,6 +27,9 @@
 // 64 bit time + nanoseconds
 #define TIME_CHARS 32
 
+// size of buffer for writing to disk look at ioblksize.h in coreutils
+// and try some values on your own system if you want the best performance
+#define DISK_BUFF_SIZE 32768
 
 static char storage_url[MAX_URL_SIZE];
 static char storage_token[MAX_HEADER_SIZE];
@@ -97,6 +100,21 @@ static void add_header(curl_slist **headers, const char *name,
   *headers = curl_slist_append(*headers, x_header);
 }
 
+static size_t rw_callback2(ssize_t (*rw)(int, const void *, size_t), void *ptr,
+        size_t size, size_t nmemb, void *userp)
+{
+    struct segment_info *info = (struct segment_info *)userp;
+    size_t mem = size * nmemb;
+
+    if (mem < 1 || info->size < 1)
+      return 0;
+
+    size_t amt_read = rw(fileno(info->fp), ptr, info->size < mem ? info->size : mem);
+    info->size -= amt_read;
+
+    return amt_read;
+}
+
 static size_t rw_callback(size_t (*rw)(void*, size_t, size_t, FILE*), void *ptr,
         size_t size, size_t nmemb, void *userp)
 {
@@ -127,6 +145,10 @@ static size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userp)
    return rw_callback(fwrite2, ptr, size, nmemb, userp);
 }
 
+static size_t write_callback2(void *ptr, size_t size, size_t nmemb, void *userp)
+{
+   return rw_callback2(write, ptr, size, nmemb, userp);
+}
 
 static int send_request_size(const char *method, const char *path, void *fp,
                         xmlParserCtxtPtr xmlctx, curl_slist *extra_headers,
@@ -317,6 +339,7 @@ void *upload_segment(void *seginfo)
   info = (struct segment_info *)seginfo;
 
   fseek(info->fp, info->part * info->segment_size, SEEK_SET);
+  setvbuf(info->fp, NULL, _IOFBF, DISK_BUFF_SIZE);
 
   snprintf(seg_path, MAX_URL_SIZE, "%s%08i", info->seg_base, info->part);
   char *encoded = curl_escape(seg_path, 0);
@@ -537,8 +560,6 @@ int cloudfs_object_write_fp(const char *path, FILE *fp)
       debugf("ftruncate failed.  I don't know what to do about that.");
       abort();
     }
-
-    fprintf(stderr, "\n\nTHE SEGMENTS%s\n\n", seg_base);
 
     run_segment_threads("GET", segments, full_segments, remaining, fp,
             seg_base, size_of_segments);
