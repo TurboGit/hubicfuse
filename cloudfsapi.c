@@ -248,8 +248,11 @@ static int send_request(char *method, const char *path, FILE *fp,
 {
 
     long flen = 0;
-    if (fp)
-        flen = cloudfs_file_size(fileno(fp));
+    if (fp) {
+      // if we don't flush the size will probably be zero
+      fflush(fp);
+      flen = cloudfs_file_size(fileno(fp));
+    }
 
     return send_request_size(method, path, fp, xmlctx, extra_headers, flen, 0);
 
@@ -766,7 +769,8 @@ int cloudfs_create_symlink(const char *src, const char *dst)
   char *dst_encoded = curl_escape(dst, 0);
 
   FILE *lnk = tmpfile();
-  fwrite(src, strlen(src), 1, lnk);
+
+  fwrite(src, 1, strlen(src), lnk);
   fwrite("\0", 1, 1, lnk);
   int response = send_request("MKLINK", dst_encoded, lnk, NULL, NULL);
   curl_free(dst_encoded);
