@@ -100,21 +100,6 @@ static void add_header(curl_slist **headers, const char *name,
   *headers = curl_slist_append(*headers, x_header);
 }
 
-static size_t rw_callback2(ssize_t (*rw)(int, const void *, size_t), void *ptr,
-        size_t size, size_t nmemb, void *userp)
-{
-    struct segment_info *info = (struct segment_info *)userp;
-    size_t mem = size * nmemb;
-
-    if (mem < 1 || info->size < 1)
-      return 0;
-
-    size_t amt_read = rw(fileno(info->fp), ptr, info->size < mem ? info->size : mem);
-    info->size -= amt_read;
-
-    return amt_read;
-}
-
 static size_t rw_callback(size_t (*rw)(void*, size_t, size_t, FILE*), void *ptr,
         size_t size, size_t nmemb, void *userp)
 {
@@ -143,11 +128,6 @@ static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
 static size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userp)
 {
    return rw_callback(fwrite2, ptr, size, nmemb, userp);
-}
-
-static size_t write_callback2(void *ptr, size_t size, size_t nmemb, void *userp)
-{
-   return rw_callback2(write, ptr, size, nmemb, userp);
 }
 
 static int send_request_size(const char *method, const char *path, void *fp,
@@ -294,44 +274,6 @@ static size_t header_dispatch(void *ptr, size_t size, size_t nmemb, void *stream
   return size * nmemb;
 }
 
-/*
- * Public interface
- */
-
-void cloudfs_init()
-{
-  LIBXML_TEST_VERSION
-  xmlXPathInit();
-  curl_global_init(CURL_GLOBAL_ALL);
-  pthread_mutex_init(&pool_mut, NULL);
-  curl_version_info_data *cvid = curl_version_info(CURLVERSION_NOW);
-
-  // CentOS/RHEL 5 get stupid mode, because they have a broken libcurl
-  if (cvid->version_num == RHEL5_LIBCURL_VERSION)
-  {
-    debugf("RHEL5 mode enabled.");
-    rhel5_mode = 1;
-  }
-
-  if (!strncasecmp(cvid->ssl_version, "openssl", 7))
-  {
-    #ifdef HAVE_OPENSSL
-    int i;
-    ssl_lockarray = (pthread_mutex_t *)OPENSSL_malloc(CRYPTO_num_locks() *
-                                              sizeof(pthread_mutex_t));
-    for (i = 0; i < CRYPTO_num_locks(); i++)
-      pthread_mutex_init(&(ssl_lockarray[i]), NULL);
-    CRYPTO_set_id_callback((unsigned long (*)())thread_id);
-    CRYPTO_set_locking_callback((void (*)())lock_callback);
-    #endif
-  }
-  else if (!strncasecmp(cvid->ssl_version, "nss", 3))
-  {
-    // allow https to continue working after forking (for RHEL/CentOS 6)
-    setenv("NSS_STRICT_NOFORK", "DISABLED", 1);
-  }
-}
-
 void *upload_segment(void *seginfo)
 {
   char seg_path[MAX_URL_SIZE];
@@ -358,6 +300,7 @@ void *upload_segment(void *seginfo)
 }
 
 // segment_size is the globabl config variable and size_of_segment is local
+//TODO: return whether the upload/download failed or not
 void run_segment_threads(const char *method, int segments, int full_segments, int remaining,
         FILE *fp, char *seg_base, int size_of_segments)
 {
@@ -416,6 +359,44 @@ void split_path(const char *path, char *seg_base, char *container,
 
   strncpy(object, _object, MAX_URL_SIZE);
   free(string);
+}
+
+/*
+ * Public interface
+ */
+
+void cloudfs_init()
+{
+  LIBXML_TEST_VERSION
+  xmlXPathInit();
+  curl_global_init(CURL_GLOBAL_ALL);
+  pthread_mutex_init(&pool_mut, NULL);
+  curl_version_info_data *cvid = curl_version_info(CURLVERSION_NOW);
+
+  // CentOS/RHEL 5 get stupid mode, because they have a broken libcurl
+  if (cvid->version_num == RHEL5_LIBCURL_VERSION)
+  {
+    debugf("RHEL5 mode enabled.");
+    rhel5_mode = 1;
+  }
+
+  if (!strncasecmp(cvid->ssl_version, "openssl", 7))
+  {
+    #ifdef HAVE_OPENSSL
+    int i;
+    ssl_lockarray = (pthread_mutex_t *)OPENSSL_malloc(CRYPTO_num_locks() *
+                                              sizeof(pthread_mutex_t));
+    for (i = 0; i < CRYPTO_num_locks(); i++)
+      pthread_mutex_init(&(ssl_lockarray[i]), NULL);
+    CRYPTO_set_id_callback((unsigned long (*)())thread_id);
+    CRYPTO_set_locking_callback((void (*)())lock_callback);
+    #endif
+  }
+  else if (!strncasecmp(cvid->ssl_version, "nss", 3))
+  {
+    // allow https to continue working after forking (for RHEL/CentOS 6)
+    setenv("NSS_STRICT_NOFORK", "DISABLED", 1);
+  }
 }
 
 int cloudfs_object_read_fp(const char *path, FILE *fp)
