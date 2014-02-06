@@ -297,7 +297,6 @@ void *upload_segment(void *seginfo)
          response);
 
   curl_free(encoded);
-  fflush(info->fp);
   fclose(info->fp);
   pthread_exit(NULL);
 }
