@@ -35,7 +35,7 @@ BUILDING:
 
 USE:
 
-    sudo hubicfuse /mnt/hubic -o username='xxx',password='xxx',noauto_cache,sync_read,allow_othe
+    sudo hubicfuse /mnt/hubic -o username='xxx',password='xxx',noauto_cache,sync_read,allow_other
 
     Your Hubic Cloud username and password can be placed in a file
     named $HOME/.cloudfuse:
