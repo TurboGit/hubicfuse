@@ -426,6 +426,9 @@ FuseOptions options = {
     .password = "",
     .cache_timeout = "600",
     .verify_ssl = "true",
+    .client_id = "",
+    .client_secret = "",
+    .redirect_uri = ""
 };
 
 int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs)
@@ -433,7 +436,10 @@ int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs
   if (sscanf(arg, " username = %[^\r\n ]", options.username) ||
       sscanf(arg, " password = %[^\r\n ]", options.password) ||
       sscanf(arg, " cache_timeout = %[^\r\n ]", options.cache_timeout) ||
-      sscanf(arg, " verify_ssl = %[^\r\n ]", options.verify_ssl))
+      sscanf(arg, " verify_ssl = %[^\r\n ]", options.verify_ssl) ||
+      sscanf(arg, " client_id = %[^\r\n ]", options.client_id) ||
+      sscanf(arg, " client_secret = %[^\r\n ]", options.client_secret) ||
+      sscanf(arg, " redirect_uri = %[^\r\n ]", options.redirect_uri))
     return 0;
   if (!strcmp(arg, "-f") || !strcmp(arg, "-d") || !strcmp(arg, "debug"))
     cloudfs_debug(1);
@@ -515,4 +521,3 @@ int main(int argc, char **argv)
   pthread_mutex_init(&dmut, NULL);
   return fuse_main(args.argc, args.argv, &cfs_oper, &options);
 }
-

@@ -531,15 +531,15 @@ int safe_json_string(json_object *jobj, char *buffer, char *name)
 
 int cloudfs_connect()
 {
-  #define HUBIC_TOKEN_URL "https://api.hubic.com/oauth/token"
-  #define HUBIC_AUTH_URL  "https://api.hubic.com/oauth/auth"
-  #define HUBIC_CRED_URL  "https://api.hubic.com/1.0/account/credentials"
-  #define HUBIC_CLIENT_ID     "api_hubic_1366206728U6faUvDSfE1iFImoFAFUIfDRbJytlaY0"
-  #define HUBIC_CLIENT_SECRET "gXfu3KUIO1K57jUsW7VgKmNEhOWIbFdy7r8Z2xBdZn5K6SMkMmnU4lQUcnRy5E26"
-  #define HUBIC_REDIRECT_URI "http://localhost:8080"
-  #define HUBIC_USERNAME (options.username)
-  #define HUBIC_PASSWORD (options.password)
-  #define HUBIC_OPTIONS_SIZE 2048
+  #define HUBIC_TOKEN_URL     "https://api.hubic.com/oauth/token"
+  #define HUBIC_AUTH_URL      "https://api.hubic.com/oauth/auth"
+  #define HUBIC_CRED_URL      "https://api.hubic.com/1.0/account/credentials"
+  #define HUBIC_CLIENT_ID     (options.client_id)
+  #define HUBIC_CLIENT_SECRET (options.client_secret)
+  #define HUBIC_REDIRECT_URI  (options.redirect_uri)
+  #define HUBIC_USERNAME      (options.username)
+  #define HUBIC_PASSWORD      (options.password)
+  #define HUBIC_OPTIONS_SIZE  2048
 
   long response = -1;
   char url[HUBIC_OPTIONS_SIZE];
@@ -547,7 +547,7 @@ int cloudfs_connect()
 
   pthread_mutex_lock(&pool_mut);
 
-  debugf("Authenticating...");
+  debugf("Authenticating... (client_id = '%s')", HUBIC_CLIENT_ID);
 
   storage_token[0] = storage_url[0] = '\0';
 
@@ -577,6 +577,9 @@ int cloudfs_connect()
 
   curl_easy_setopt(curl, CURLOPT_URL, url);
   char *json_str = htmlStringGet(curl);
+
+  debugf ("HUBIC AUTH_URL (req token) result: '%s'\n", json_str);
+
   struct json_object *json_obj;
 
   const char *oauth_pattern = "<input type=\"hidden\" name=\"oauth\" value=\"";

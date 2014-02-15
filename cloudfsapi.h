@@ -29,6 +29,9 @@ typedef struct options {
     char password[OPTION_SIZE];
     char cache_timeout[OPTION_SIZE];
     char verify_ssl[OPTION_SIZE];
+    char client_id[OPTION_SIZE];
+    char client_secret[OPTION_SIZE];
+    char redirect_uri[OPTION_SIZE];
 } FuseOptions;
 
 void cloudfs_init();
@@ -48,4 +51,3 @@ void cloudfs_free_dir_list(dir_entry *dir_list);
 
 void debugf(char *fmt, ...);
 #endif
-
