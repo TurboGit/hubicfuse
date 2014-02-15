@@ -1,17 +1,6 @@
-Cloudfuse is a FUSE application which provides access to Rackspace's
-Cloud Files (or any installation of Swift).
 
-Cloud Files is a remote storage system which is similar in principle to
-Amazon S3.  It provides a simple RESTful interface to storing and retrieving
-objects.
-
-    http://www.rackspacecloud.com/cloud_hosting_products/files
-
-Swift, the software behind Cloud Files, has been open-sourced as part of the
-OpenStack project.
-
-    http://swift.openstack.org/
-
+HubicFuse is a FUSE application which provides access to Hubic's
+cloud files via a mount-point.
 
 BUILDING:
 
@@ -30,42 +19,32 @@ BUILDING:
         make
         sudo make install
 
-    But I'm no autoconf wizard, and there may be dragons lurking there.
-
-
 USE:
 
-    sudo hubicfuse /mnt/hubic -o username='xxx',password='xxx',noauto_cache,sync_read,allow_other
+    Your Hubic Cloud configuration can be placed in a file named
+    $HOME/.cloudfuse. All the following variables are required:
 
-    Your Hubic Cloud username and password can be placed in a file
-    named $HOME/.cloudfuse:
         username=[Hubic user e-mail]
         password=[Hubic password]
+        client_id=[Hubic client id for the registered application]
+        client_secret=[Hubic client secret for the registered application]
+        redirect_uri=[Hubic redirect uri as registered for the application]
 
-    The following settings are optional:
-        authurl=[Authentication url - connect to non-Rackspace Swift]
-        tenant=[Tenant for authentication with Keystone, enables Auth 2.0 API]
-        password=[Alias for api_key, if using Keystone API]
-        use_snet=[True to use Rackspace ServiceNet for connections]
-        cache_timeout=[Seconds for directory caching, default 600]
-        verify_ssl=[False to disable SSL cert verification]
+    The you can call hubicfuse:
 
-    Or as mount options in /etc/fstab:
+        sudo hubicfuse /mnt/hubic -o noauto_cache,sync_read,allow_other
+
+    It is possible to pass (or override) some variables on the command line:
+
+        sudo hubicfuse /mnt/hubic \
+           -o username='xxx',password='xxx',noauto_cache,sync_read,allow_other
+
+    And finaly, it can be set in /etc/fstab:
+
         hubicfuse /mnt/hubic fuse username=xxx,password=xxx...,user 0 0
 
     It also inherits a number of command-line arguments and mount options from
     the Fuse framework.  The "-h" argument should provide a summary.
-
-
-EXAMPLE:
-
-    A typical .cloudfuse configuration file for use with OpenStack Essex:
-
-    username=demo
-    tenant=demo
-    api_key=supersecret
-    authurl=http://10.10.0.1:5000/v2.0/tokens
-    use_openstack=true
 
 
 BUGS/SHORTCOMINGS:
