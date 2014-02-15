@@ -464,7 +464,7 @@ static size_t writefunc_string(void *contents, size_t size, size_t nmemb, void *
 	struct htmlString *mem = (struct htmlString *) data;
 	size_t realsize = size * nmemb;
 	mem->text = realloc(mem->text, mem->size + realsize + 1);
-	if (mem->text == NULL) { /* out of memory! */ 
+	if (mem->text == NULL) { /* out of memory! */
 		perror(__FILE__);
 		exit(EXIT_FAILURE);
 	}
@@ -484,7 +484,7 @@ char* htmlStringGet(CURL *curl)
 	do {
 		curl_easy_perform(curl);
 	} while (chunk.size == 0);
-	
+
 	chunk.text[chunk.size] = '\0';
 	return chunk.text;
 }
@@ -493,7 +493,7 @@ char* htmlStringGet(CURL *curl)
 char *unbase64(unsigned char *input, int length)
 {
 	BIO *b64, *bmem;
-	
+
 	char *buffer = (char *)malloc(length);
 	memset(buffer, 0, length);
 
@@ -719,4 +719,3 @@ void debugf(char *fmt, ...)
     putc('\n', stderr);
   }
 }
-
