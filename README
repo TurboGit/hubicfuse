@@ -35,10 +35,12 @@ BUILDING:
 
 USE:
 
-    Your Rackspace Cloud username and API key can be placed in a file
+    sudo hubicfuse /mnt/hubic -o username='xxx',password='xxx',noauto_cache,sync_read,allow_othe
+
+    Your Hubic Cloud username and password can be placed in a file
     named $HOME/.cloudfuse:
-        username=[Account username]
-        api_key=[API key (or password for Keystone API)]
+        username=[Hubic user e-mail]
+        password=[Hubic password]
 
     The following settings are optional:
         authurl=[Authentication url - connect to non-Rackspace Swift]
@@ -48,11 +50,8 @@ USE:
         cache_timeout=[Seconds for directory caching, default 600]
         verify_ssl=[False to disable SSL cert verification]
 
-    These can also be specified as mount options on the command line:
-        cloudfuse -o username=redbo,api_key=713aa... mountpoint/
-
     Or as mount options in /etc/fstab:
-        cloudfuse /mnt/cloudfiles fuse username=redbo,api_key=713aa...,user 0 0
+        hubicfuse /mnt/hubic fuse username=xxx,password=xxx...,user 0 0
 
     It also inherits a number of command-line arguments and mount options from
     the Fuse framework.  The "-h" argument should provide a summary.
@@ -86,6 +85,7 @@ BUGS/SHORTCOMINGS:
 
 AWESOME CONTRIBUTORS:
 
+    * Pascal Obry                                  https://github.com/TurboGit
     * Tim Dysinger                                 https://github.com/dysinger
     * Chris Wedgwood                               https://github.com/cwedgwood
     * Nick Craig-Wood                              https://github.com/ncw
@@ -98,6 +98,5 @@ AWESOME CONTRIBUTORS:
 
 Thanks, and I hope you find it useful.
 
-Michael Barton
-<mike@weirdlooking.com>
-
+Pascal Obry
+<pascal@obry.net>
