@@ -9,6 +9,7 @@
 #define MAX_PATH_SIZE (1024 + 256 + 3)
 #define MAX_URL_SIZE (MAX_PATH_SIZE * 3)
 #define USER_AGENT "CloudFuse"
+#define OPTION_SIZE 1024
 
 typedef struct curl_slist curl_slist;
 
@@ -22,6 +23,13 @@ typedef struct dir_entry
   int isdir;
   struct dir_entry *next;
 } dir_entry;
+
+typedef struct options {
+    char username[OPTION_SIZE];
+    char password[OPTION_SIZE];
+    char cache_timeout[OPTION_SIZE];
+    char verify_ssl[OPTION_SIZE];
+} FuseOptions;
 
 void cloudfs_init();
 void cloudfs_set_credentials(char *username, char *password);

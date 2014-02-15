@@ -33,6 +33,8 @@ static int debug = 0;
 static int verify_ssl = 1;
 static int rhel5_mode = 0;
 
+extern FuseOptions options;
+
 #ifdef HAVE_OPENSSL
 #include <openssl/crypto.h>
 static pthread_mutex_t *ssl_lockarray;
@@ -509,16 +511,31 @@ char *unbase64(unsigned char *input, int length)
 
 int cloudfs_connect()
 {
+  #define HUBIC_TOKEN_URL "https://api.hubic.com/oauth/token"
+  #define HUBIC_AUTH_URL  "https://api.hubic.com/oauth/auth"
+  #define HUBIC_CRED_URL  "https://api.hubic.com/1.0/account/credentials"
+  #define HUBIC_CLIENT_ID     "api_hubic_1366206728U6faUvDSfE1iFImoFAFUIfDRbJytlaY0"
+  #define HUBIC_CLIENT_SECRET "gXfu3KUIO1K57jUsW7VgKmNEhOWIbFdy7r8Z2xBdZn5K6SMkMmnU4lQUcnRy5E26"
+  #define HUBIC_REDIRECT_URI "http://localhost:8080"
+  #define HUBIC_USERNAME (options.username)
+  #define HUBIC_PASSWORD (options.password)
+  #define HUBIC_OPTIONS_SIZE 2048
+
   long response = -1;
+  json_object *my_object;
+  char url[HUBIC_OPTIONS_SIZE];
+  char payload[HUBIC_OPTIONS_SIZE];
 
   pthread_mutex_lock(&pool_mut);
+
   debugf("Authenticating...");
+
   storage_token[0] = storage_url[0] = '\0';
 
   CURL *curl = curl_easy_init();
 
+  /* curl default options */
   curl_easy_setopt(curl, CURLOPT_VERBOSE, debug);
-
   curl_easy_setopt(curl, CURLOPT_USERAGENT, USER_AGENT);
   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1);
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_ssl);
@@ -526,85 +543,132 @@ int cloudfs_connect()
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10);
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10);
   curl_easy_setopt(curl, CURLOPT_FORBID_REUSE, 1);
-
+  curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
+  curl_easy_setopt(curl, CURLOPT_POST, 0L);
+  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writefunc_string);
 
-	/* Step 1: get the id */
-  curl_easy_setopt(curl, CURLOPT_URL, "https://ws.ovh.com/sessionHandler/r4/rest.dispatcher/getAnonymousSession");
-  
+  /* Step 1 : request a token */
+
+  char oauthid[HUBIC_OPTIONS_SIZE];
+  char auth_code[HUBIC_OPTIONS_SIZE];
+
+  sprintf (url, "%s?client_id=%s&redirect_uri=%s&scope=usage.r,account.r,getAllLinks.r,credentials.r,activate.w,links.drw&response_type=code&state=none",
+           HUBIC_AUTH_URL, HUBIC_CLIENT_ID, curl_escape(HUBIC_REDIRECT_URI,0));
+
+  curl_easy_setopt(curl, CURLOPT_URL, url);
   char *json_str = htmlStringGet(curl);
   struct json_object *json_obj;
-  json_obj = json_tokener_parse(json_str);
+
+  const char *oauth_pattern = "<input type=\"hidden\" name=\"oauth\" value=\"";
+  char *start, *stop;
+  if ((start = strstr(json_str, oauth_pattern)) != NULL)
+    {
+      start += strlen(oauth_pattern);
+      stop = start;
+      while ((*stop >= '0') && (*stop <= '9'))
+        stop++;
+      strncpy(oauthid, start, stop-start);
+      oauthid[stop-start]='\0';
+    }
+
+  debugf ("HUBIC oauthid = '%s'\n", oauthid);
   free(json_str);
-  
-  char id[MAX_URL_SIZE];
-  strcpy(id, json_object_get_string(json_object_object_get(json_object_object_get(json_object_object_get(json_obj, "answer"), "session"), "id")));
-  json_object_put(json_obj);
-  // printf("id=%s\n", id);
-  
-  /* Step 2: get the nic and the hubicId*/
-  char url2[MAX_URL_SIZE];
-  strcpy(url2, "https://ws.ovh.com/hubic/r5/rest.dispatcher/getHubics?params={%22sessionId%22:%22");
-  strcat(url2, id);
-  strcat(url2, "%22,%22email%22:%22");
-  strcat(url2, reconnect_args.username);
-  strcat(url2, "%22}");
-  
-  curl_easy_setopt(curl, CURLOPT_URL, url2);
+
+  /* Step 2 : get request code */
+
+  sprintf(payload, "oauth=%s&usage=r&account=r&getAllLinks=r&credentials=r&activate=w&links=r&action=accepted&login=%s&user_pwd=%s&links=w&links=d", oauthid, curl_escape(HUBIC_USERNAME,0), curl_escape(HUBIC_PASSWORD,0));
+
+  curl_easy_setopt(curl, CURLOPT_URL, HUBIC_AUTH_URL);
+  curl_easy_setopt(curl, CURLOPT_POST, 1L);
+  curl_easy_setopt(curl, CURLOPT_HEADER, 1); /* headers needed to get the Location */
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload);
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(payload));
+
+  json_str = htmlStringGet(curl);
+  debugf ("HUBIC AUTH_URL result: '%s'\n", json_str);
+
+  const char *location_pattern = "?code=";
+  if ((start = strstr(json_str, location_pattern)) != NULL)
+    {
+      start += strlen(location_pattern);
+      stop = start;
+      while (*stop != '&')
+        stop++;
+      strncpy(auth_code, start, stop-start);
+      auth_code[stop-start]='\0';
+    }
+
+  free(json_str);
+  debugf ("HUBIC auth_code = '%s'\n", auth_code);
+
+  /* Step 3 : get access token */
+
+  sprintf(payload, "code=%s&redirect_uri=%s&grant_type=authorization_code", auth_code, curl_escape(HUBIC_REDIRECT_URI,0));
+
+  curl_easy_setopt(curl, CURLOPT_URL, HUBIC_TOKEN_URL);
+  curl_easy_setopt(curl, CURLOPT_POST, 1L);
+  curl_easy_setopt(curl, CURLOPT_HEADER, 0);
+
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload);
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(payload));
+
+  curl_easy_setopt(curl, CURLOPT_USERNAME, HUBIC_CLIENT_ID);
+  curl_easy_setopt(curl, CURLOPT_PASSWORD, HUBIC_CLIENT_SECRET);
+  curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+
   json_str = htmlStringGet(curl);
   json_obj = json_tokener_parse(json_str);
+  debugf ("HUBIC TOKEN_URL result: '%s'\n", json_str);
   free(json_str);
-  
-  char nic[MAX_URL_SIZE], hubic_id[MAX_URL_SIZE];
-  strcpy(nic, json_object_get_string(json_object_object_get(json_object_array_get_idx(json_object_object_get(json_obj, "answer"),0), "nic")));
-  strcpy(hubic_id, json_object_get_string(json_object_object_get(json_object_array_get_idx(json_object_object_get(json_obj, "answer"),0), "id")));
-  json_object_put(json_obj);
-  // printf("nic=%s\nhubicId=%s\n", nic, hubic_id);
-  
-  /* Step 3: get the sessionId */
-  char url3[MAX_URL_SIZE];
-  strcpy(url3, "https://ws.ovh.com/sessionHandler/r4/rest.dispatcher/login?params={%22login%22:%22");
-  strcat(url3, nic);
-  strcat(url3, "%22,%22password%22:%22");
-  strcat(url3, reconnect_args.password);
-  strcat(url3, "%22,%22context%22:%22hubic%22}");
-  
-  curl_easy_setopt(curl, CURLOPT_URL, url3);
+
+  char access_token[HUBIC_OPTIONS_SIZE];
+  char token_type[HUBIC_OPTIONS_SIZE];
+  int expire_sec;
+
+  strcpy (access_token, json_object_get_string(json_object_object_get(json_obj, "access_token")));
+  strcpy (token_type, json_object_get_string(json_object_object_get(json_obj, "token_type")));
+  expire_sec = json_object_get_int(json_object_object_get(json_obj, "expires_in"));
+  debugf ("HUBIC Access token: %s\n", access_token);
+  debugf ("HUBIC Token type  : %s\n", token_type);
+  debugf ("HUBIC Expire in   : %d\n", expire_sec);
+
+  /* Step 4 : request OpenStack storage URL */
+
+  curl_easy_setopt(curl, CURLOPT_URL, HUBIC_CRED_URL);
+  curl_easy_setopt(curl, CURLOPT_POST, 0L);
+  curl_easy_setopt(curl, CURLOPT_HEADER, 0);
+  curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_NONE);
+
+  /* create the Bearer authentication header */
+  curl_slist *headers = NULL;
+  sprintf (payload, "Bearer %s", access_token);
+  add_header(&headers, "Authorization", payload);
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+  char token[HUBIC_OPTIONS_SIZE];
+  char endpoint[HUBIC_OPTIONS_SIZE];
+  char expires[HUBIC_OPTIONS_SIZE];
+
   json_str = htmlStringGet(curl);
   json_obj = json_tokener_parse(json_str);
+  debugf ("CRED_URL result: '%s'\n", json_str);
   free(json_str);
-  
-  char session_id[MAX_URL_SIZE];
-  strcpy(session_id, json_object_get_string(json_object_object_get(json_object_object_get(json_object_object_get(json_obj, "answer"), "session"), "id")));
-  // printf("sessionID=%s\n", session_id);
-  
-  /* Step 4: get the credentials */
-  char url4[MAX_URL_SIZE];
-  strcpy(url4, "https://ws.ovh.com/hubic/r5/rest.dispatcher/getHubic?params={%22sessionId%22:%22");
-  strcat(url4, session_id);
-  strcat(url4, "%22,%22hubicId%22:%22");
-  strcat(url4, hubic_id);
-  strcat(url4, "%22}");
-  
-  curl_easy_setopt(curl, CURLOPT_URL, url4);
-  json_str = htmlStringGet(curl);
-  json_obj = json_tokener_parse(json_str);
-  free(json_str);
-  
-  char username[MAX_URL_SIZE];
-  strcpy(username, json_object_get_string(json_object_object_get(json_object_object_get(json_object_object_get(json_obj, "answer"), "credentials"), "username")));
-  strcpy(storage_token, json_object_get_string(json_object_object_get(json_object_object_get(json_object_object_get(json_obj, "answer"), "credentials"), "secret")));
-  
-  char *decode_username = unbase64(username, strlen(username));
-  strcpy(storage_url, decode_username);
-  // printf("username=%s\nsecret=%s\n",storage_url, storage_token);
-  free(decode_username);
+
+  strcpy (token, json_object_get_string(json_object_object_get(json_obj, "token")));
+  strcpy (endpoint, json_object_get_string(json_object_object_get(json_obj, "endpoint")));
+  strcpy (expires, json_object_get_string(json_object_object_get(json_obj, "expires")));
+
+  /* set the global storage_url and storage_token, the only parameters needed for swift */
+  strcpy (storage_url, endpoint);
+  strcpy (storage_token, token);
 
   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response);
-  
+
   curl_easy_cleanup(curl);
 
   pthread_mutex_unlock(&pool_mut);
+
   return (response >= 200 && response < 300 && storage_token[0] && storage_url[0]);
 }
 

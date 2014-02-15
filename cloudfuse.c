@@ -17,9 +17,6 @@
 #include "cloudfsapi.h"
 #include "config.h"
 
-
-#define OPTION_SIZE 1024
-
 static int cache_timeout;
 
 typedef struct dir_cache
@@ -424,12 +421,7 @@ char *get_home_dir()
   return "~";
 }
 
-static struct options {
-    char username[OPTION_SIZE];
-    char password[OPTION_SIZE];
-    char cache_timeout[OPTION_SIZE];
-    char verify_ssl[OPTION_SIZE];
-} options = {
+FuseOptions options = {
     .username = "",
     .password = "",
     .cache_timeout = "600",
