@@ -542,7 +542,6 @@ int cloudfs_connect()
   #define HUBIC_OPTIONS_SIZE 2048
 
   long response = -1;
-  json_object *my_object;
   char url[HUBIC_OPTIONS_SIZE];
   char payload[HUBIC_OPTIONS_SIZE];
 
