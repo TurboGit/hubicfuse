@@ -509,6 +509,26 @@ char *unbase64(unsigned char *input, int length)
 	return buffer;
 }
 
+int safe_json_string(json_object *jobj, char *buffer, char *name)
+{
+  int result = 0;
+
+  if (jobj)
+    {
+      json_object *o = json_object_object_get(jobj, name);
+      if (o)
+        {
+          strcpy (buffer, json_object_get_string(o));
+          result = 1;
+        }
+    }
+
+  if (!result)
+    debugf("HUBIC cannot get json field '%s'\n", name);
+
+  return result;
+}
+
 int cloudfs_connect()
 {
   #define HUBIC_TOKEN_URL "https://api.hubic.com/oauth/token"
@@ -571,6 +591,11 @@ int cloudfs_connect()
       strncpy(oauthid, start, stop-start);
       oauthid[stop-start]='\0';
     }
+  else
+    {
+      debugf ("HUBIC fails to get oauthid");
+      return 0;
+    }
 
   debugf ("HUBIC oauthid = '%s'\n", oauthid);
   free(json_str);
@@ -597,6 +622,11 @@ int cloudfs_connect()
         stop++;
       strncpy(auth_code, start, stop-start);
       auth_code[stop-start]='\0';
+    }
+  else
+    {
+      debugf ("HUBIC fails to get Location header");
+      return 0;
     }
 
   free(json_str);
@@ -626,8 +656,10 @@ int cloudfs_connect()
   char token_type[HUBIC_OPTIONS_SIZE];
   int expire_sec;
 
-  strcpy (access_token, json_object_get_string(json_object_object_get(json_obj, "access_token")));
-  strcpy (token_type, json_object_get_string(json_object_object_get(json_obj, "token_type")));
+  if (!safe_json_string(json_obj, access_token, "access_token"))
+    return 0;
+  if (!safe_json_string(json_obj, token_type, "token_type"))
+    return 0;
   expire_sec = json_object_get_int(json_object_object_get(json_obj, "expires_in"));
   debugf ("HUBIC Access token: %s\n", access_token);
   debugf ("HUBIC Token type  : %s\n", token_type);
@@ -655,9 +687,12 @@ int cloudfs_connect()
   debugf ("CRED_URL result: '%s'\n", json_str);
   free(json_str);
 
-  strcpy (token, json_object_get_string(json_object_object_get(json_obj, "token")));
-  strcpy (endpoint, json_object_get_string(json_object_object_get(json_obj, "endpoint")));
-  strcpy (expires, json_object_get_string(json_object_object_get(json_obj, "expires")));
+  if (!safe_json_string(json_obj, token, "token"))
+    return 0;
+  if (!safe_json_string(json_obj, endpoint, "endpoint"))
+    return 0;
+  if (!safe_json_string(json_obj, expires, "expires"))
+    return 0;
 
   /* set the global storage_url and storage_token, the only parameters needed for swift */
   strcpy (storage_url, endpoint);
