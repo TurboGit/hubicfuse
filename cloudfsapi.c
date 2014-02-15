@@ -33,6 +33,8 @@ static int debug = 0;
 static int verify_ssl = 1;
 static int rhel5_mode = 0;
 
+extern FuseOptions options;
+
 #ifdef HAVE_OPENSSL
 #include <openssl/crypto.h>
 static pthread_mutex_t *ssl_lockarray;
