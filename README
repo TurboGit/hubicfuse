@@ -46,6 +46,18 @@ USE:
     It also inherits a number of command-line arguments and mount options from
     the Fuse framework.  The "-h" argument should provide a summary.
 
+USE AS NON-ROOT:
+
+    Add the user into the fuse group:
+
+       $ sudo usermod -a -G fuse [username]
+
+    Mount using the above command without the sudo. The .cloudfuse file is
+    search into the user's home.
+
+    To unmount use:
+
+       $ fusermount -u [chemin]
 
 BUGS/SHORTCOMINGS:
 
