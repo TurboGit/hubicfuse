@@ -292,19 +292,43 @@ static int cfs_create(const char *path, mode_t mode, struct fuse_file_info *info
 
 static int cfs_open(const char *path, struct fuse_file_info *info)
 {
-  FILE *temp_file;// = fopen(file_path, "w+b");
+  //TODO: need to clean this up and reduce the duplicated code
+  if (!*temp_dir) {
+
+    FILE *temp_file = tmpfile();
+    dir_entry *de = path_info(path);
+    if (!(info->flags & O_WRONLY))
+    {
+      if (!cloudfs_object_write_fp(path, temp_file))
+      {
+        fclose(temp_file);
+        return -ENOENT;
+      }
+      update_dir_cache(path, (de ? de->size : 0), 0, 0);
+    }
+    openfile *of = (openfile *)malloc(sizeof(openfile));
+    of->fd = dup(fileno(temp_file));
+    fclose(temp_file);
+    of->flags = info->flags;
+    info->fh = (uintptr_t)of;
+    info->direct_io = 1;
+    return 0;
+  }
+
+
+  FILE *temp_file;
 
   char tmp_path[PATH_MAX];
   strncpy(tmp_path, path, PATH_MAX);
 
   char *pch;
   while((pch = strchr(tmp_path, '/'))) {
-      *pch = '.';
+    *pch = '.';
   }
 
   char file_path[PATH_MAX];
   snprintf(file_path, PATH_MAX, "%s/.cloudfuse%ld-%s", temp_dir,
-        (long)getpid(), tmp_path);
+      (long)getpid(), tmp_path);
 
   dir_entry *de = path_info(path);
 
