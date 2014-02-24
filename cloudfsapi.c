@@ -363,6 +363,95 @@ void split_path(const char *path, char *seg_base, char *container,
   free(string);
 }
 
+int internal_is_segmented(const char *seg_path, const char *object)
+{
+  dir_entry *seg_dir;
+  if (cloudfs_list_directory(seg_path, &seg_dir)) {
+    if (seg_dir && seg_dir->isdir) {
+        do {
+            if (!strncmp(seg_dir->name, object, MAX_URL_SIZE)) {
+                return 1;
+            }
+        } while ((seg_dir = seg_dir->next));
+    }
+  }
+  return 0;
+}
+
+int is_segmented(const char *path)
+{
+  char container[MAX_URL_SIZE] = "";
+  char object[MAX_URL_SIZE] = "";
+  char seg_base[MAX_URL_SIZE] = "";
+
+  split_path(path, seg_base, container, object);
+
+  char seg_path[MAX_URL_SIZE];
+  snprintf(seg_path, MAX_URL_SIZE, "%s/%s_segments", seg_base, container);
+
+  return internal_is_segmented(seg_path, object);
+}
+
+
+int format_segments(const char *path, char * seg_base,  long *segments,
+        long *full_segments, long *remaining, long *size_of_segments)
+{
+
+  char container[MAX_URL_SIZE] = "";
+  char object[MAX_URL_SIZE] = "";
+
+  split_path(path, seg_base, container, object);
+
+  char seg_path[MAX_URL_SIZE];
+  snprintf(seg_path, MAX_URL_SIZE, "%s/%s_segments", seg_base, container);
+
+  if (internal_is_segmented(seg_path, object)) {
+    char manifest[MAX_URL_SIZE];
+    dir_entry *seg_dir;
+
+    snprintf(manifest, MAX_URL_SIZE, "%s/%s", seg_path, object);
+    if (!cloudfs_list_directory(manifest, &seg_dir))
+      return 0;
+
+    // snprintf seesaw between manifest and seg_path to get
+    // the total_size and the segment size as well as the actual objects
+    char *timestamp = seg_dir->name;
+    snprintf(seg_path, MAX_URL_SIZE, "%s/%s", manifest, timestamp);
+    if (!cloudfs_list_directory(seg_path, &seg_dir))
+      return 0;
+
+    char *str_size = seg_dir->name;
+    snprintf(manifest, MAX_URL_SIZE, "%s/%s", seg_path, str_size);
+    if (!cloudfs_list_directory(manifest, &seg_dir))
+      return 0;
+
+    char *str_segment = seg_dir->name;
+    snprintf(seg_path, MAX_URL_SIZE, "%s/%s", manifest, str_segment);
+    if (!cloudfs_list_directory(seg_path, &seg_dir))
+      return 0;
+
+    long total_size = strtoll(str_size, NULL, 10);
+    *size_of_segments = strtoll(str_segment, NULL, 10);
+
+    *remaining = total_size % *size_of_segments;
+    *full_segments = total_size / *size_of_segments;
+    *segments = *full_segments + (*remaining > 0);
+
+    snprintf(manifest, MAX_URL_SIZE, "%s_segments/%s/%s/%s/%s/",
+        container, object, timestamp, str_size, str_segment);
+
+    char tmp[MAX_URL_SIZE];
+    strncpy(tmp, seg_base, MAX_URL_SIZE);
+    snprintf(seg_base, MAX_URL_SIZE, "%s/%s", tmp, manifest);
+
+    return 1;
+  }
+
+  else {
+    return 0;
+  }
+}
+
 /*
  * Public interface
  */
@@ -410,6 +499,13 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
   // determine the size of the file and segment if it is above the threshhold
   fseek(fp, 0, SEEK_END);
   flen = ftell(fp);
+
+  // delete the previously uploaded segments
+  if (is_segmented(path)) {
+    if (!cloudfs_delete_object(path))
+      debugf("Couldn't delete one of the existing files while uploading.");
+  }
+
   if (flen >= segment_above) {
     int i;
     long remaining = flen % segment_size;
@@ -472,72 +568,23 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
   return (response >= 200 && response < 300);
 }
 
-int is_segmented(const char *seg_path, const char *object)
-{
-  //return 0;
-  dir_entry *seg_dir;
-  if (cloudfs_list_directory(seg_path, &seg_dir)) {
-    if (seg_dir && seg_dir->isdir) {
-        do {
-            if (!strncmp(seg_dir->name, object, MAX_URL_SIZE)) {
-                return 1;
-            }
-        } while ((seg_dir = seg_dir->next));
-    }
-  }
-  return 0;
-}
 
 int cloudfs_object_write_fp(const char *path, FILE *fp)
 {
   char *encoded = curl_escape(path, 0);
   char seg_base[MAX_URL_SIZE] = "";
 
-  char container[MAX_URL_SIZE] = "";
-  char object[MAX_URL_SIZE] = "";
+  long segments;
+  long full_segments;
+  long remaining;
+  long size_of_segments;
 
-  split_path(path, seg_base, container, object);
-
-  char seg_path[MAX_URL_SIZE];
-  snprintf(seg_path, MAX_URL_SIZE, "%s/%s_segments", seg_base, container);
-
-  if (is_segmented(seg_path, object)) {
-    char manifest[MAX_URL_SIZE];
-    dir_entry *seg_dir;
-
-    snprintf(manifest, MAX_URL_SIZE, "%s/%s", seg_path, object);
-    cloudfs_list_directory(manifest, &seg_dir);
-
-    // snprintf seesaw between manifest and seg_path to get
-    // the total_size and the segment size as well as the actual objects
-    char *timestamp = seg_dir->name;
-    snprintf(seg_path, MAX_URL_SIZE, "%s/%s", manifest, timestamp);
-    cloudfs_list_directory(seg_path, &seg_dir);
-
-    char *str_size = seg_dir->name;
-    snprintf(manifest, MAX_URL_SIZE, "%s/%s", seg_path, str_size);
-    cloudfs_list_directory(manifest, &seg_dir);
-
-    char *str_segment = seg_dir->name;
-    snprintf(seg_path, MAX_URL_SIZE, "%s/%s", manifest, str_segment);
-    cloudfs_list_directory(seg_path, &seg_dir);
-
-    long total_size = strtoll(str_size, NULL, 10);
-    long size_of_segments = strtoll(str_segment, NULL, 10);
-
-    long remaining = total_size % size_of_segments;
-    long full_segments = total_size / size_of_segments;
-    long segments = full_segments + (remaining > 0);
-
-    snprintf(manifest, MAX_URL_SIZE, "%s_segments/%s/%s/%s/%s/",
-        container, object, timestamp, str_size, str_segment);
-
-    char tmp[MAX_URL_SIZE];
-    strncpy(tmp, seg_base, MAX_URL_SIZE);
-    snprintf(seg_base, MAX_URL_SIZE, "%s/%s", tmp, manifest);
+  if (format_segments(path, seg_base, &segments, &full_segments, &remaining,
+        &size_of_segments)) {
 
     rewind(fp);
     fflush(fp);
+
     if (ftruncate(fileno(fp), 0) < 0)
     {
       debugf("ftruncate failed.  I don't know what to do about that.");
@@ -745,6 +792,28 @@ void cloudfs_free_dir_list(dir_entry *dir_list)
 
 int cloudfs_delete_object(const char *path)
 {
+
+  char seg_base[MAX_URL_SIZE] = "";
+
+  long segments;
+  long full_segments;
+  long remaining;
+  long size_of_segments;
+
+  if (format_segments(path, seg_base, &segments, &full_segments, &remaining,
+        &size_of_segments)) {
+    int response;
+    int i;
+    char seg_path[MAX_URL_SIZE] = "";
+    for (i = 0; i < segments; i++) {
+      snprintf(seg_path, MAX_URL_SIZE, "%s%08i", seg_base, i);
+      char *encoded = curl_escape(seg_path, 0);
+      response = send_request("DELETE", encoded, NULL, NULL, NULL);
+      if (response < 200 || response >= 300)
+        return 0;
+    }
+  }
+
   char *encoded = curl_escape(path, 0);
   int response = send_request("DELETE", encoded, NULL, NULL, NULL);
   curl_free(encoded);
