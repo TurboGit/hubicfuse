@@ -41,7 +41,7 @@ USE:
 
     And finaly, it can be set in /etc/fstab:
 
-        hubicfuse /mnt/hubic fuse username=xxx,password=xxx...,user 0 0
+        hubicfuse /mnt/hubic fuse username=xxx,password=xxx...,user,noauto 0 0
 
     It also inherits a number of command-line arguments and mount options from
     the Fuse framework.  The "-h" argument should provide a summary.
