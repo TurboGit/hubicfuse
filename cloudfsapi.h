@@ -34,9 +34,9 @@ typedef struct options {
     char redirect_uri[OPTION_SIZE];
 } FuseOptions;
 
-void cloudfs_init();
+void cloudfs_init(void);
 void cloudfs_set_credentials(char *username, char *password);
-int cloufds_connect();
+int cloudfs_connect(void);
 int cloudfs_object_read_fp(const char *path, FILE *fp);
 int cloudfs_object_write_fp(const char *path, FILE *fp);
 int cloudfs_list_directory(const char *path, dir_entry **);
