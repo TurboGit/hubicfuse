@@ -468,7 +468,7 @@ int main(int argc, char **argv)
   if (!*options.username || !*options.password)
   {
     fprintf(stderr, "Unable to determine username and password.\n\n");
-    fprintf(stderr, "These can be set either as mount options or in"
+    fprintf(stderr, "These can be set either as mount options or in "
                     "a file named %s\n\n", settings_filename);
     fprintf(stderr, "  username=[Account username]\n");
     fprintf(stderr, "  password=[Account password]\n");
