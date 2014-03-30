@@ -11,7 +11,8 @@ BUILDING:
              libssl-dev libfuse-dev libjson0-dev
 
     For CentOS or similar,
-        yum install gcc make fuse-devel curl-devel libxml2-devel openssl-devel
+        yum install gcc make fuse-devel curl-devel libxml2-devel \
+            openssl-devel json-c-devel
 
     Cloudfuse is built and installed like any other autoconf configured code.
     Normally,
