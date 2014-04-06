@@ -31,6 +31,8 @@ USE:
         client_secret=[Hubic client secret for the registered application]
         redirect_uri=[Hubic redirect uri as registered for the application]
 
+    client_id, client_secret and redirect_uri can be retrieved from the hubic
+    web interface: https://hubic.com/home/browser/developers/
 
     Then you can call hubicfuse:
 
