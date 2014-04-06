@@ -31,7 +31,8 @@ USE:
         client_secret=[Hubic client secret for the registered application]
         redirect_uri=[Hubic redirect uri as registered for the application]
 
-    The you can call hubicfuse:
+
+    Then you can call hubicfuse:
 
         sudo hubicfuse /mnt/hubic -o noauto_cache,sync_read,allow_other
 
