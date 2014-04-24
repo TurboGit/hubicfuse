@@ -30,7 +30,7 @@ static pthread_mutex_t pool_mut;
 static CURL *curl_pool[1024];
 static int curl_pool_count = 0;
 static int debug = 0;
-static int verify_ssl = 1;
+static int verify_ssl = 2;
 static int rhel5_mode = 0;
 
 extern FuseOptions options;
@@ -441,7 +441,7 @@ void cloudfs_debug(int dbg)
 
 void cloudfs_verify_ssl(int vrfy)
 {
-  verify_ssl = vrfy;
+  verify_ssl = vrfy ? 2 : 0;
 }
 
 static struct {
@@ -557,7 +557,7 @@ int cloudfs_connect()
   curl_easy_setopt(curl, CURLOPT_VERBOSE, debug);
   curl_easy_setopt(curl, CURLOPT_USERAGENT, USER_AGENT);
   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1);
-  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_ssl);
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_ssl ? 1 : 0);
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, verify_ssl);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10);
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10);
@@ -566,7 +566,6 @@ int cloudfs_connect()
   curl_easy_setopt(curl, CURLOPT_POST, 0L);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writefunc_string);
-
   /* Step 1 : request a token */
 
   char oauthid[HUBIC_OPTIONS_SIZE];
