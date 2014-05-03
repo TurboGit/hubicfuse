@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #ifdef __linux__
 #include <alloca.h>
 #endif
@@ -16,6 +17,8 @@
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <json/json.h>
+#include <libxml/xpath.h>
+#include <libxml/xpathInternals.h>
 #include "cloudfsapi.h"
 #include "config.h"
 
@@ -23,6 +26,13 @@
 #define RHEL5_CERTIFICATE_FILE "/etc/pki/tls/certs/ca-bundle.crt"
 
 #define REQUEST_RETRIES 4
+
+// 64 bit time + nanoseconds
+#define TIME_CHARS 32
+
+// size of buffer for writing to disk look at ioblksize.h in coreutils
+// and try some values on your own system if you want the best performance
+#define DISK_BUFF_SIZE 32768
 
 static char storage_url[MAX_URL_SIZE];
 static char storage_token[MAX_HEADER_SIZE];
@@ -78,14 +88,47 @@ static void return_connection(CURL *curl)
   pthread_mutex_unlock(&pool_mut);
 }
 
-static void add_header(curl_slist **headers, const char *name, const char *value)
+static void add_header(curl_slist **headers, const char *name,
+                       const char *value)
 {
   char x_header[MAX_HEADER_SIZE];
   snprintf(x_header, sizeof(x_header), "%s: %s", name, value);
   *headers = curl_slist_append(*headers, x_header);
 }
 
-static int send_request(char *method, const char *path, FILE *fp, xmlParserCtxtPtr xmlctx, curl_slist *extra_headers)
+static size_t rw_callback(size_t (*rw)(void*, size_t, size_t, FILE*), void *ptr,
+        size_t size, size_t nmemb, void *userp)
+{
+    struct segment_info *info = (struct segment_info *)userp;
+    size_t mem = size * nmemb;
+
+    if (mem < 1 || info->size < 1)
+      return 0;
+
+    size_t amt_read = rw(ptr, 1, info->size < mem ? info->size : mem, info->fp);
+    info->size -= amt_read;
+
+    return amt_read;
+}
+
+size_t fwrite2(void *ptr, size_t size, size_t nmemb, FILE *filep)
+{
+    return fwrite((const void*)ptr, size, nmemb, filep);
+}
+
+static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
+{
+    return rw_callback(fread, ptr, size, nmemb, userp);
+}
+
+static size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userp)
+{
+   return rw_callback(fwrite2, ptr, size, nmemb, userp);
+}
+
+static int send_request_size(const char *method, const char *path, void *fp,
+                        xmlParserCtxtPtr xmlctx, curl_slist *extra_headers,
+                        off_t file_size, int is_segment)
 {
   char url[MAX_URL_SIZE];
   char *slash;
@@ -129,16 +172,31 @@ static int send_request(char *method, const char *path, FILE *fp, xmlParserCtxtP
       curl_easy_setopt(curl, CURLOPT_INFILESIZE, 0);
       add_header(&headers, "Content-Type", "application/directory");
     }
-    else if (!strcasecmp(method, "PUT") && fp)
+    else if (!strcasecmp(method, "MKLINK") && fp)
     {
       rewind(fp);
       curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
-      curl_easy_setopt(curl, CURLOPT_INFILESIZE, cloudfs_file_size(fileno(fp)));
+      //curl_easy_setopt(curl, CURLOPT_INFILESIZE, 0);
+      curl_easy_setopt(curl, CURLOPT_INFILESIZE, file_size);
       curl_easy_setopt(curl, CURLOPT_READDATA, fp);
+      add_header(&headers, "Content-Type", "application/link");
+    }
+    else if (!strcasecmp(method, "PUT") && fp)
+    {
+      curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
+      curl_easy_setopt(curl, CURLOPT_INFILESIZE, file_size);
+      curl_easy_setopt(curl, CURLOPT_READDATA, fp);
+      if (is_segment)
+        curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
     }
     else if (!strcasecmp(method, "GET"))
     {
-      if (fp)
+      if (is_segment)
+      {
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+      }
+      else if (fp)
       {
         rewind(fp); // make sure the file is ready for a-writin'
         fflush(fp);
@@ -181,6 +239,215 @@ static int send_request(char *method, const char *path, FILE *fp, xmlParserCtxtP
   return response;
 }
 
+static int send_request(char *method, const char *path, FILE *fp,
+                        xmlParserCtxtPtr xmlctx, curl_slist *extra_headers)
+{
+
+    long flen = 0;
+    if (fp) {
+      // if we don't flush the size will probably be zero
+      fflush(fp);
+      flen = cloudfs_file_size(fileno(fp));
+    }
+
+    return send_request_size(method, path, fp, xmlctx, extra_headers, flen, 0);
+
+}
+
+static size_t header_dispatch(void *ptr, size_t size, size_t nmemb, void *stream)
+{
+  char *header = (char *)alloca(size * nmemb + 1);
+  char *head = (char *)alloca(size * nmemb + 1);
+  char *value = (char *)alloca(size * nmemb + 1);
+  memcpy(header, (char *)ptr, size * nmemb);
+  header[size * nmemb] = '\0';
+  if (sscanf(header, "%[^:]: %[^\r\n]", head, value) == 2)
+  {
+    if (!strncasecmp(head, "x-auth-token", size * nmemb))
+      strncpy(storage_token, value, sizeof(storage_token));
+    if (override_storage_url[0])
+      strncpy(storage_url, override_storage_url, sizeof(storage_url));
+    else if (!strncasecmp(head, "x-storage-url", size * nmemb))
+      strncpy(storage_url, value, sizeof(storage_url));
+  }
+  return size * nmemb;
+}
+
+void *upload_segment(void *seginfo)
+{
+  char seg_path[MAX_URL_SIZE];
+  struct segment_info *info;
+  info = (struct segment_info *)seginfo;
+
+  fseek(info->fp, info->part * info->segment_size, SEEK_SET);
+  setvbuf(info->fp, NULL, _IOFBF, DISK_BUFF_SIZE);
+
+  snprintf(seg_path, MAX_URL_SIZE, "%s%08i", info->seg_base, info->part);
+  char *encoded = curl_escape(seg_path, 0);
+
+  int response = send_request_size(info->method, encoded, info, NULL, NULL,
+      info->size, 1);
+
+  if (!(response >= 200 && response < 300))
+    fprintf(stderr, "Segment upload %s failed with response %d", seg_path,
+         response);
+
+  curl_free(encoded);
+  fclose(info->fp);
+  pthread_exit(NULL);
+}
+
+// segment_size is the globabl config variable and size_of_segment is local
+//TODO: return whether the upload/download failed or not
+void run_segment_threads(const char *method, int segments, int full_segments, int remaining,
+        FILE *fp, char *seg_base, int size_of_segments)
+{
+    char file_path[PATH_MAX] = "";
+    struct segment_info *info = (struct segment_info *)
+            malloc(segments * sizeof(struct segment_info));
+
+    pthread_t *threads = (pthread_t *)malloc(segments * sizeof(pthread_t));
+#ifdef __linux__
+    snprintf(file_path, PATH_MAX, "/proc/self/fd/%d", fileno(fp));
+#else
+    //TODO: I haven't actually tested this
+    if (fcntl(fileno(fp), F_GETPATH, file_path) == -1)
+      fprintf(stderr, "couldn't get the path name\n");
+#endif
+
+    int i;
+    for (i = 0; i < segments; i++) {
+      info[i].method = method;
+      info[i].fp = fopen(file_path, method[0] == 'G' ? "r+" : "r");
+      info[i].part = i;
+      info[i].segment_size = size_of_segments;
+      info[i].size = i < full_segments ? size_of_segments : remaining;
+      info[i].seg_base = seg_base;
+      pthread_create(&threads[i], NULL, upload_segment, (void *)&(info[i]));
+    }
+
+    for (i = 0; i < segments; i++) {
+      pthread_join(threads[i], NULL);
+    }
+    free(info);
+    free(threads);
+}
+
+void split_path(const char *path, char *seg_base, char *container,
+        char *object)
+{
+  char *string = strdup(path);
+
+  snprintf(seg_base, MAX_URL_SIZE, "%s", strsep(&string, "/"));
+
+  strncat(container, strsep(&string, "/"),
+      MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
+
+  char *_object = strsep(&string, "/");
+
+  char *remstr;
+
+  while (remstr = strsep(&string, "/")) {
+      strncat(container, "/",
+          MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
+      strncat(container, _object,
+          MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
+      _object = remstr;
+  }
+
+  strncpy(object, _object, MAX_URL_SIZE);
+  free(string);
+}
+
+int internal_is_segmented(const char *seg_path, const char *object)
+{
+  dir_entry *seg_dir;
+  if (cloudfs_list_directory(seg_path, &seg_dir)) {
+    if (seg_dir && seg_dir->isdir) {
+        do {
+            if (!strncmp(seg_dir->name, object, MAX_URL_SIZE)) {
+                return 1;
+            }
+        } while ((seg_dir = seg_dir->next));
+    }
+  }
+  return 0;
+}
+
+int is_segmented(const char *path)
+{
+  char container[MAX_URL_SIZE] = "";
+  char object[MAX_URL_SIZE] = "";
+  char seg_base[MAX_URL_SIZE] = "";
+
+  split_path(path, seg_base, container, object);
+
+  char seg_path[MAX_URL_SIZE];
+  snprintf(seg_path, MAX_URL_SIZE, "%s/%s_segments", seg_base, container);
+
+  return internal_is_segmented(seg_path, object);
+}
+
+
+int format_segments(const char *path, char * seg_base,  long *segments,
+        long *full_segments, long *remaining, long *size_of_segments)
+{
+
+  char container[MAX_URL_SIZE] = "";
+  char object[MAX_URL_SIZE] = "";
+
+  split_path(path, seg_base, container, object);
+
+  char seg_path[MAX_URL_SIZE];
+  snprintf(seg_path, MAX_URL_SIZE, "%s/%s_segments", seg_base, container);
+
+  if (internal_is_segmented(seg_path, object)) {
+    char manifest[MAX_URL_SIZE];
+    dir_entry *seg_dir;
+
+    snprintf(manifest, MAX_URL_SIZE, "%s/%s", seg_path, object);
+    if (!cloudfs_list_directory(manifest, &seg_dir))
+      return 0;
+
+    // snprintf seesaw between manifest and seg_path to get
+    // the total_size and the segment size as well as the actual objects
+    char *timestamp = seg_dir->name;
+    snprintf(seg_path, MAX_URL_SIZE, "%s/%s", manifest, timestamp);
+    if (!cloudfs_list_directory(seg_path, &seg_dir))
+      return 0;
+
+    char *str_size = seg_dir->name;
+    snprintf(manifest, MAX_URL_SIZE, "%s/%s", seg_path, str_size);
+    if (!cloudfs_list_directory(manifest, &seg_dir))
+      return 0;
+
+    char *str_segment = seg_dir->name;
+    snprintf(seg_path, MAX_URL_SIZE, "%s/%s", manifest, str_segment);
+    if (!cloudfs_list_directory(seg_path, &seg_dir))
+      return 0;
+
+    long total_size = strtoll(str_size, NULL, 10);
+    *size_of_segments = strtoll(str_segment, NULL, 10);
+
+    *remaining = total_size % *size_of_segments;
+    *full_segments = total_size / *size_of_segments;
+    *segments = *full_segments + (*remaining > 0);
+
+    snprintf(manifest, MAX_URL_SIZE, "%s_segments/%s/%s/%s/%s/",
+        container, object, timestamp, str_size, str_segment);
+
+    char tmp[MAX_URL_SIZE];
+    strncpy(tmp, seg_base, MAX_URL_SIZE);
+    snprintf(seg_base, MAX_URL_SIZE, "%s/%s", tmp, manifest);
+
+    return 1;
+  }
+
+  else {
+    return 0;
+  }
+}
+
 /*
  * Public interface
  */
@@ -188,6 +455,7 @@ static int send_request(char *method, const char *path, FILE *fp, xmlParserCtxtP
 void cloudfs_init()
 {
   LIBXML_TEST_VERSION
+  xmlXPathInit();
   curl_global_init(CURL_GLOBAL_ALL);
   pthread_mutex_init(&pool_mut, NULL);
   curl_version_info_data *cvid = curl_version_info(CURLVERSION_NOW);
@@ -220,7 +488,75 @@ void cloudfs_init()
 
 int cloudfs_object_read_fp(const char *path, FILE *fp)
 {
+
+  long flen;
   fflush(fp);
+
+  // determine the size of the file and segment if it is above the threshhold
+  fseek(fp, 0, SEEK_END);
+  flen = ftell(fp);
+
+  // delete the previously uploaded segments
+  if (is_segmented(path)) {
+    if (!cloudfs_delete_object(path))
+      debugf("Couldn't delete one of the existing files while uploading.");
+  }
+
+  if (flen >= segment_above) {
+    int i;
+    long remaining = flen % segment_size;
+    int full_segments = flen / segment_size;
+    int segments = full_segments + (remaining > 0);
+
+    // The best we can do here is to get the current time that way tools that
+    // use the mtime can at least check if the file was changing after now
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
+
+    char string_float[TIME_CHARS];
+    snprintf(string_float, TIME_CHARS, "%lu.%lu", now.tv_sec, now.tv_nsec);
+
+    char meta_mtime[TIME_CHARS];
+    snprintf(meta_mtime, TIME_CHARS, "%f", atof(string_float));
+
+    char seg_base[MAX_URL_SIZE] = "";
+
+    char container[MAX_URL_SIZE] = "";
+    char object[MAX_URL_SIZE] = "";
+
+    split_path(path, seg_base, container, object);
+
+    char manifest[MAX_URL_SIZE];
+    snprintf(manifest, MAX_URL_SIZE, "%s_segments", container);
+
+    // create the segments container
+    cloudfs_create_directory(manifest);
+
+    // reusing manifest
+    snprintf(manifest, MAX_URL_SIZE, "%s_segments/%s/%s/%ld/%ld/",
+        container, object, meta_mtime, flen, segment_size);
+
+    char tmp[MAX_URL_SIZE];
+    strncpy(tmp, seg_base, MAX_URL_SIZE);
+    snprintf(seg_base, MAX_URL_SIZE, "%s/%s", tmp, manifest);
+
+    run_segment_threads("PUT", segments, full_segments, remaining, fp,
+            seg_base, segment_size);
+
+    char *encoded = curl_escape(path, 0);
+    curl_slist *headers = NULL;
+    add_header(&headers, "x-object-manifest", manifest);
+    add_header(&headers, "x-object-meta-mtime", meta_mtime);
+    add_header(&headers, "Content-Length", "0");
+
+    int response = send_request_size("PUT", encoded, NULL, NULL, headers, 0, 0);
+    curl_slist_free_all(headers);
+
+    curl_free(encoded);
+    return (response >= 200 && response < 300);
+
+  }
+
   rewind(fp);
   char *encoded = curl_escape(path, 0);
   int response = send_request("PUT", encoded, fp, NULL, NULL);
@@ -228,9 +564,34 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
   return (response >= 200 && response < 300);
 }
 
+
 int cloudfs_object_write_fp(const char *path, FILE *fp)
 {
   char *encoded = curl_escape(path, 0);
+  char seg_base[MAX_URL_SIZE] = "";
+
+  long segments;
+  long full_segments;
+  long remaining;
+  long size_of_segments;
+
+  if (format_segments(path, seg_base, &segments, &full_segments, &remaining,
+        &size_of_segments)) {
+
+    rewind(fp);
+    fflush(fp);
+
+    if (ftruncate(fileno(fp), 0) < 0)
+    {
+      debugf("ftruncate failed.  I don't know what to do about that.");
+      abort();
+    }
+
+    run_segment_threads("GET", segments, full_segments, remaining, fp,
+            seg_base, size_of_segments);
+    return 1;
+  }
+
   int response = send_request("GET", encoded, fp, NULL, NULL);
   curl_free(encoded);
   fflush(fp);
@@ -299,9 +660,14 @@ int cloudfs_list_directory(const char *path, dir_entry **dir_list)
     curl_free(encoded_object);
   }
 
-  response = send_request("GET", container, NULL, xmlctx, NULL);
-  xmlParseChunk(xmlctx, "", 0, 1);
-  if (xmlctx->wellFormed && response >= 200 && response < 300)
+  if ((!strcmp(path, "") || !strcmp(path, "/")) && *override_storage_url)
+    response = 404;
+  else
+    response = send_request("GET", container, NULL, xmlctx, NULL);
+
+  if (response >= 200 && response < 300)
+    xmlParseChunk(xmlctx, "", 0, 1);
+  if (response >= 200 && response < 300 && xmlctx->wellFormed )
   {
     xmlNode *root_element = xmlDocGetRootElement(xmlctx->myDoc);
     for (onode = root_element->children; onode; onode = onode->next)
@@ -359,6 +725,8 @@ int cloudfs_list_directory(const char *path, dir_entry **dir_list)
         de->isdir = de->content_type &&
             ((strstr(de->content_type, "application/folder") != NULL) ||
              (strstr(de->content_type, "application/directory") != NULL));
+        de->islink = de->content_type &&
+            ((strstr(de->content_type, "application/link") != NULL));
         if (de->isdir)
         {
           if (!strncasecmp(de->name, last_subdir, sizeof(last_subdir)))
@@ -376,6 +744,25 @@ int cloudfs_list_directory(const char *path, dir_entry **dir_list)
         debugf("unknown element: %s", onode->name);
       }
     }
+    retval = 1;
+  }
+  else if ((!strcmp(path, "") || !strcmp(path, "/")) && *override_storage_url) {
+    entry_count = 1;
+
+    dir_entry *de = (dir_entry *)malloc(sizeof(dir_entry));
+    de->name = strdup(public_container);
+    struct tm last_modified;
+    strptime("1388434648.01238", "%FT%T", &last_modified);
+    de->last_modified = mktime(&last_modified);
+    de->content_type = strdup("application/directory");
+    if (asprintf(&(de->full_name), "%s/%s", path, de->name) < 0)
+      de->full_name = NULL;
+
+    de->isdir = 1;
+    de->islink = 0;
+    de->size = 4096;
+    de->next = *dir_list;
+    *dir_list = de;
     retval = 1;
   }
 
@@ -401,6 +788,28 @@ void cloudfs_free_dir_list(dir_entry *dir_list)
 
 int cloudfs_delete_object(const char *path)
 {
+
+  char seg_base[MAX_URL_SIZE] = "";
+
+  long segments;
+  long full_segments;
+  long remaining;
+  long size_of_segments;
+
+  if (format_segments(path, seg_base, &segments, &full_segments, &remaining,
+        &size_of_segments)) {
+    int response;
+    int i;
+    char seg_path[MAX_URL_SIZE] = "";
+    for (i = 0; i < segments; i++) {
+      snprintf(seg_path, MAX_URL_SIZE, "%s%08i", seg_base, i);
+      char *encoded = curl_escape(seg_path, 0);
+      response = send_request("DELETE", encoded, NULL, NULL, NULL);
+      if (response < 200 || response >= 300)
+        return 0;
+    }
+  }
+
   char *encoded = curl_escape(path, 0);
   int response = send_request("DELETE", encoded, NULL, NULL, NULL);
   curl_free(encoded);
@@ -416,6 +825,20 @@ int cloudfs_copy_object(const char *src, const char *dst)
   int response = send_request("PUT", dst_encoded, NULL, NULL, headers);
   curl_free(dst_encoded);
   curl_slist_free_all(headers);
+  return (response >= 200 && response < 300);
+}
+
+int cloudfs_create_symlink(const char *src, const char *dst)
+{
+  char *dst_encoded = curl_escape(dst, 0);
+
+  FILE *lnk = tmpfile();
+
+  fwrite(src, 1, strlen(src), lnk);
+  fwrite("\0", 1, 1, lnk);
+  int response = send_request("MKLINK", dst_encoded, lnk, NULL, NULL);
+  curl_free(dst_encoded);
+  fclose(lnk);
   return (response >= 200 && response < 300);
 }
 
@@ -445,13 +868,29 @@ void cloudfs_verify_ssl(int vrfy)
 }
 
 static struct {
-  char username[MAX_HEADER_SIZE], password[MAX_HEADER_SIZE];
+  char username[MAX_HEADER_SIZE], password[MAX_HEADER_SIZE],
+      tenant[MAX_HEADER_SIZE], authurl[MAX_URL_SIZE], region[MAX_URL_SIZE],
+      use_snet, auth_version;
 } reconnect_args;
 
-void cloudfs_set_credentials(char *username, char *password)
+void cloudfs_set_credentials(char *username, char *tenant, char *password,
+                             char *authurl, char *region, int use_snet)
 {
   strncpy(reconnect_args.username, username, sizeof(reconnect_args.username));
   strncpy(reconnect_args.password, password, sizeof(reconnect_args.password));
+  strncpy(reconnect_args.authurl, authurl, sizeof(reconnect_args.authurl));
+  strncpy(reconnect_args.region, region, sizeof(reconnect_args.region));
+  if (strstr(authurl, "v2.0"))
+  {
+    reconnect_args.auth_version = 2;
+    if (!strcmp(authurl + strlen(authurl) - 5, "/v2.0"))
+      strcat(reconnect_args.authurl, "/tokens");
+    else if (!strcmp(authurl + strlen(authurl) - 6, "/v2.0/"))
+      strcat(reconnect_args.authurl, "tokens");
+  }
+  else
+    reconnect_args.auth_version = 1;
+  reconnect_args.use_snet = use_snet;
 }
 
 struct htmlString {

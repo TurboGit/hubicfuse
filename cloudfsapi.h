@@ -5,7 +5,7 @@
 #include <curl/easy.h>
 
 #define BUFFER_INITIAL_SIZE 4096
-#define MAX_HEADER_SIZE 4096
+#define MAX_HEADER_SIZE 8192
 #define MAX_PATH_SIZE (1024 + 256 + 3)
 #define MAX_URL_SIZE (MAX_PATH_SIZE * 3)
 #define USER_AGENT "CloudFuse"
@@ -21,27 +21,56 @@ typedef struct dir_entry
   off_t size;
   time_t last_modified;
   int isdir;
+  int islink;
   struct dir_entry *next;
 } dir_entry;
 
 typedef struct options {
     char username[OPTION_SIZE];
+    char tenant[OPTION_SIZE];
     char password[OPTION_SIZE];
     char cache_timeout[OPTION_SIZE];
+    char authurl[OPTION_SIZE];
+    char region[OPTION_SIZE];
+    char use_snet[OPTION_SIZE];
     char verify_ssl[OPTION_SIZE];
+    char segment_size[OPTION_SIZE];
+    char segment_above[OPTION_SIZE];
+    char storage_url[OPTION_SIZE];
+    char container[OPTION_SIZE];
+    char temp_dir[OPTION_SIZE];
     char client_id[OPTION_SIZE];
     char client_secret[OPTION_SIZE];
     char redirect_uri[OPTION_SIZE];
 } FuseOptions;
 
 void cloudfs_init(void);
-void cloudfs_set_credentials(char *username, char *password);
+void cloudfs_set_credentials(char *username, char *tenant, char *password,
+                             char *authurl, char *region, int use_snet);
 int cloudfs_connect(void);
+
+struct segment_info
+{
+    FILE *fp;
+    int part;
+    long size;
+    long segment_size;
+    char *seg_base;
+    const char *method;
+};
+
+long segment_size;
+long segment_above;
+
+char *override_storage_url;
+char *public_container;
+
 int cloudfs_object_read_fp(const char *path, FILE *fp);
 int cloudfs_object_write_fp(const char *path, FILE *fp);
 int cloudfs_list_directory(const char *path, dir_entry **);
 int cloudfs_delete_object(const char *path);
 int cloudfs_copy_object(const char *src, const char *dst);
+int cloudfs_create_symlink(const char *src, const char *dst);
 int cloudfs_create_directory(const char *label);
 int cloudfs_object_truncate(const char *path, off_t size);
 off_t cloudfs_file_size(int fd);
