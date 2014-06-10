@@ -3214,7 +3214,7 @@ fi
 $as_echo "$MKDIR_P" >&6; }
 
 
-# Checks for libraries.
+# Checks that pkg-config is installed
 
 
 
@@ -3335,6 +3335,8 @@ $as_echo "no" >&6; }
 		PKG_CONFIG=""
 	fi
 fi
+
+# Checks for libraries.
 
 pkg_failed=no
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for XML" >&5
