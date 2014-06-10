@@ -15,7 +15,7 @@
 #include <libxml/tree.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
-#include <json/json.h>
+#include <json.h>
 #include "cloudfsapi.h"
 #include "config.h"
 
