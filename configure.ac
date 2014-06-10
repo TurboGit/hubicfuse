@@ -13,6 +13,9 @@ AC_PROG_CC
 AC_PROG_INSTALL
 AC_PROG_MKDIR_P
 
+# Checks that pkg-config is installed
+PKG_PROG_PKG_CONFIG
+
 # Checks for libraries.
 PKG_CHECK_MODULES(XML, libxml-2.0, , AC_MSG_ERROR('Unable to find libxml2. Please make sure library and header files are installed.'))
 PKG_CHECK_MODULES(CURL, libcurl, , AC_MSG_ERROR('Unable to find libcurl.  Please make sure library and header files are installed.'))
