@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([hubicfuse], [0.9], [Bertrand Marc <beberking@gmail.com>])
+AC_INIT([hubicfuse], [1.0.1], [Pascal Obry <pascal@obry.net>])
 AC_LANG([C])
 AC_CONFIG_SRCDIR([cloudfuse.c])
 AC_CONFIG_HEADER([config.h])
@@ -12,6 +12,10 @@ AC_CONFIG_FILES([Makefile])
 AC_PROG_CC
 AC_PROG_INSTALL
 AC_PROG_MKDIR_P
+
+# Checks that pkg-config is installed
+
+PKG_PROG_PKG_CONFIG
 
 # Checks for libraries.
 PKG_CHECK_MODULES(XML, libxml-2.0, , AC_MSG_ERROR('Unable to find libxml2. Please make sure library and header files are installed.'))
