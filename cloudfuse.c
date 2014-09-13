@@ -319,7 +319,10 @@ static int cfs_release(const char *path, struct fuse_file_info *info)
 
 static int cfs_rmdir(const char *path)
 {
-  if (cloudfs_delete_object(path))
+  int success = cloudfs_delete_object(path);
+  if (success == -1)
+    return -ENOTEMPTY;
+  if (success)
   {
     dir_decache(path);
     return 0;
@@ -345,7 +348,10 @@ static int cfs_write(const char *path, const char *buf, size_t length, off_t off
 
 static int cfs_unlink(const char *path)
 {
-  if (cloudfs_delete_object(path))
+  int success = cloudfs_delete_object(path);
+  if (success == -1)
+    return -EACCES;
+  if (success)
   {
     dir_decache(path);
     return 0;
