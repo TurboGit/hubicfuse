@@ -34,8 +34,8 @@ static int debug = 0;
 static int verify_ssl = 2;
 static int rhel5_mode = 0;
 static struct statvfs statcache = {
-  .f_bsize = 1,
-  .f_frsize = 1,
+  .f_bsize = 4096,
+  .f_frsize = 4096,
   .f_blocks = INT_MAX,
   .f_bfree = INT_MAX,
   .f_bavail = INT_MAX,
@@ -112,9 +112,9 @@ static size_t header_dispatch(void *ptr, size_t size, size_t nmemb, void *stream
     if (!strncasecmp(head, "x-storage-url", size * nmemb))
       strncpy(storage_url, value, sizeof(storage_url));
     if (!strncasecmp(head, "x-account-meta-quota", size * nmemb))
-      statcache.f_blocks = strtoul(value, NULL, 10);
+      statcache.f_blocks = (unsigned long) (strtoull(value, NULL, 10)/statcache.f_frsize);
     if (!strncasecmp(head, "x-account-bytes-used", size * nmemb))
-      statcache.f_bfree = statcache.f_bavail = statcache.f_blocks - strtoul(value, NULL, 10);
+      statcache.f_bfree = statcache.f_bavail = statcache.f_blocks - (unsigned long) (strtoull(value, NULL, 10)/statcache.f_frsize);
     if (!strncasecmp(head, "x-account-object-count", size * nmemb))
       statcache.f_files = strtoul(value, NULL, 10);
   }
