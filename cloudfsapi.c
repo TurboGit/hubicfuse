@@ -25,6 +25,8 @@
 
 #define REQUEST_RETRIES 4
 
+#define MAX_FILES 10000
+
 static char storage_url[MAX_URL_SIZE];
 static char storage_token[MAX_HEADER_SIZE];
 static pthread_mutex_t pool_mut;
@@ -39,7 +41,7 @@ static struct statvfs statcache = {
   .f_blocks = INT_MAX,
   .f_bfree = INT_MAX,
   .f_bavail = INT_MAX,
-  .f_files = INT_MAX,
+  .f_files = MAX_FILES,
   .f_ffree = 0,
   .f_favail = 0,
   .f_namemax = INT_MAX
@@ -115,8 +117,11 @@ static size_t header_dispatch(void *ptr, size_t size, size_t nmemb, void *stream
       statcache.f_blocks = (unsigned long) (strtoull(value, NULL, 10)/statcache.f_frsize);
     if (!strncasecmp(head, "x-account-bytes-used", size * nmemb))
       statcache.f_bfree = statcache.f_bavail = statcache.f_blocks - (unsigned long) (strtoull(value, NULL, 10)/statcache.f_frsize);
-    if (!strncasecmp(head, "x-account-object-count", size * nmemb))
-      statcache.f_files = strtoul(value, NULL, 10);
+    if (!strncasecmp(head, "x-account-object-count", size * nmemb)) {
+      unsigned long object_count = strtoul(value, NULL, 10);
+      statcache.f_ffree = MAX_FILES - object_count;
+      statcache.f_favail = MAX_FILES - object_count;
+    }
   }
   return size * nmemb;
 }
