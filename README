@@ -29,14 +29,15 @@ USE:
     Your Hubic Cloud configuration can be placed in a file named
     $HOME/.cloudfuse. All the following variables are required:
 
-        username=[Hubic user e-mail]
-        password=[Hubic password]
         client_id=[Hubic client id for the registered application]
         client_secret=[Hubic client secret for the registered application]
-        redirect_uri=[Hubic redirect uri as registered for the application]
+        refresh_token=[A refresh token you got from the script]
 
-    client_id, client_secret and redirect_uri can be retrieved from the hubic
+    client_id, client_secret can be retrieved from the hubic
     web interface: https://hubic.com/home/browser/developers/
+
+    The refresh_token can be obtained running the script provided (hubic_token)
+    or with any other method you like if you follow the example at https://api.hubic.com
 
     Then you can call hubicfuse:
 
