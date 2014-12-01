@@ -423,24 +423,20 @@ char *get_home_dir()
 }
 
 FuseOptions options = {
-    .username = "",
-    .password = "",
     .cache_timeout = "600",
     .verify_ssl = "true",
     .client_id = "",
     .client_secret = "",
-    .redirect_uri = ""
+    .refresh_token = ""
 };
 
 int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs)
 {
-  if (sscanf(arg, " username = %[^\r\n ]", options.username) ||
-      sscanf(arg, " password = %[^\r\n ]", options.password) ||
-      sscanf(arg, " cache_timeout = %[^\r\n ]", options.cache_timeout) ||
+  if (sscanf(arg, " cache_timeout = %[^\r\n ]", options.cache_timeout) ||
       sscanf(arg, " verify_ssl = %[^\r\n ]", options.verify_ssl) ||
       sscanf(arg, " client_id = %[^\r\n ]", options.client_id) ||
       sscanf(arg, " client_secret = %[^\r\n ]", options.client_secret) ||
-      sscanf(arg, " redirect_uri = %[^\r\n ]", options.redirect_uri))
+      sscanf(arg, " refresh_token = %[^\r\n ]", options.refresh_token))
     return 0;
   if (!strcmp(arg, "-f") || !strcmp(arg, "-d") || !strcmp(arg, "debug"))
     cloudfs_debug(1);
@@ -466,13 +462,14 @@ int main(int argc, char **argv)
 
   cache_timeout = atoi(options.cache_timeout);
 
-  if (!*options.username || !*options.password)
+  if (!*options.client_id || !*options.client_secret || !*options.refresh_token)
   {
-    fprintf(stderr, "Unable to determine username and password.\n\n");
+    fprintf(stderr, "Unable to determine client_id, client_secret or refresh_token.\n\n");
     fprintf(stderr, "These can be set either as mount options or in "
                     "a file named %s\n\n", settings_filename);
-    fprintf(stderr, "  username=[Account username]\n");
-    fprintf(stderr, "  password=[Account password]\n");
+    fprintf(stderr, "  client_id=[App's id]\n");
+    fprintf(stderr, "  client_secret=[App's secret]\n");
+    fprintf(stderr, "  refresh_token=[Get it running hubic_token]\n");
     fprintf(stderr, "The following settings are optional:\n\n");
     fprintf(stderr, "  cache_timeout=[Seconds for directory caching, default 600]\n");
     fprintf(stderr, "  verify_ssl=[False to disable SSL cert verification]\n");
@@ -484,7 +481,7 @@ int main(int argc, char **argv)
 
   cloudfs_verify_ssl(!strcasecmp(options.verify_ssl, "true"));
 
-  cloudfs_set_credentials(options.username, options.password);
+  cloudfs_set_credentials(options.client_id, options.client_secret, options.refresh_token);
   if (!cloudfs_connect())
   {
     fprintf(stderr, "Failed to authenticate.\n");

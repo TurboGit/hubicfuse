@@ -25,17 +25,15 @@ typedef struct dir_entry
 } dir_entry;
 
 typedef struct options {
-    char username[OPTION_SIZE];
-    char password[OPTION_SIZE];
     char cache_timeout[OPTION_SIZE];
     char verify_ssl[OPTION_SIZE];
     char client_id[OPTION_SIZE];
     char client_secret[OPTION_SIZE];
-    char redirect_uri[OPTION_SIZE];
+    char refresh_token[OPTION_SIZE];
 } FuseOptions;
 
 void cloudfs_init(void);
-void cloudfs_set_credentials(char *username, char *password);
+void cloudfs_set_credentials(char *client_id, char *client_secret, char *refresh_token);
 int cloudfs_connect(void);
 int cloudfs_object_read_fp(const char *path, FILE *fp);
 int cloudfs_object_write_fp(const char *path, FILE *fp);
