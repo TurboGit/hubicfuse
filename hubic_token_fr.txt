@@ -1,0 +1,50 @@
+# --------------------------------------------------------------------------------------
+# Messages                                                                             |
+# --------------------------------------------------------------------------------------
+# FRENCH
+PROMPT_CLIENT_ID="client_id (l'id de l'app): "
+PROMPT_CLIENT_SECRET="client_secret (le secret de l'app): "
+PROMPT_REDIRECT_URI="redirect_uri (declaré à la création de l'app): "
+PROMPT_USER_LOGIN="user_login (l'e-mail utilisé lors de l'inscription): "
+PROMPT_USER_PWD="user_pwd (votre mot de passe hubiC): "
+MSG_SCOPE="Pour le 'scope' -ce que vous autorisez à votre app-, entrez des caractères
+suggérés entre parenthèses, ou entrée si vous ne voulez pas autoriser l'item."
+PROMPT_USAGE="Lire le quota d'usage (r): "
+PROMPT_GETALLLINKS="Lire tous les liens publiés en une fois (r): "
+PROMPT_CREDENTIALS="Obtenir les autorisations OpenStack, ie. accéder à vos fichiers (r): "
+PROMPT_ACTIVATE="Envoyer un e-mail d'activation (w): "
+PROMPT_LINKS="Créer/Lire/Supprimer un lien publié (wrd): "
+
+ERR_BAD_ARG='Argument inconnu : '
+MSG_USAGE='Usage : '
+MSG_OPTIONS=" [-k|--insecure] [-V|--version]
+ -k
+--insecure: se connecte même si l'authentification du certificat échoue.
+ -V
+--version : affiche la version de ce script et se termine."
+
+MSG_VERSION=", version : "
+
+ERR_CURL="Impossible de trouver : curl or wget. Installez-en un, ex.: sudo apt-get install curl."
+ERR_HTTPS="ERREUR: vérification du certificat échouée.
+Si vous voulez ignorer la vérification du certificat, utilisez l'option -k."
+ERR_CNX="Erreur inattendue en essayant de se connecter à hubiC, voir code d'error."
+ERR_UNEXPECTED="Response inattendue d'hubiC. Votre wget/curl supporte-t-il HTTPS ?"
+ERR_SED="Impossible de trouver: sed. Merci de l'installer."
+
+ERR_CURL_FAILED="a échoué (voir le code de sortie) à l'étape"
+ERR_OAUTH_NOT_FOUND="Impossible de trouver 'oauth' dans la response du serveur."
+ERR_OAUTH_HTTP="Status de la réponse HTTP inattendu lors de la requête 'oauth'."
+ERR_REASON="Le serveur a dit, erreur : "
+ERR_REASON_DESC="Description de l'erreur : "
+ERR_REASON_UNKNOWN="Impossible de récupérer le message d'erreur dans la response du serveur."
+ERR_CODE_NOT_FOUND="Impossible de trouver 'code' dans la response du serveur."
+ERR_CODE_HTTP="Status de la réponse HTTP inattendu lors de la requête 'code'."
+ERR_TOKEN_NOT_FOUND="Impossible de trouver 'refresh_token' dans la response du serveur."
+ERR_TOKEN_HTTP="Status de la réponse HTTP inattendu lors de la requête 'refresh_token'."
+
+ERR_OUT="Réponse complète du serveur:"
+
+MSG_SUCCESS='Succès!'
+MSG_HEAD_RESULT="# Voici de dont vote app a besoin pour se connecter à hubiC :"
+
