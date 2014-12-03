@@ -27,7 +27,7 @@ BUILDING:
 USE:
 
     Your Hubic Cloud configuration can be placed in a file named
-    $HOME/.cloudfuse. All the following variables are required:
+    $HOME/.hubicfuse. All the following variables are required:
 
         client_id=[Hubic client id for the registered application]
         client_secret=[Hubic client secret for the registered application]
@@ -56,7 +56,7 @@ USE AS NON-ROOT:
 
        $ sudo usermod -a -G fuse [username]
 
-    Mount using the above command without the sudo. The .cloudfuse file is
+    Mount using the above command without the sudo. The .hubicfuse file is
     searched into the user's home.
 
     To unmount use:

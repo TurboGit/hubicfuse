@@ -449,7 +449,7 @@ int main(int argc, char **argv)
   FILE *settings;
   struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
-  snprintf(settings_filename, sizeof(settings_filename), "%s/.cloudfuse", get_home_dir());
+  snprintf(settings_filename, sizeof(settings_filename), "%s/.hubicfuse", get_home_dir());
   if ((settings = fopen(settings_filename, "r")))
   {
     char line[OPTION_SIZE];
