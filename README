@@ -13,7 +13,7 @@ BUILDING:
     For CentOS or similar,
         yum install gcc make fuse-devel curl-devel libxml2-devel \
             openssl-devel json-c-devel
-            
+
     For Debian or Ubuntu,
         apt-get install gcc make libfuse-dev libcurl-dev \
             libcurl4-openssl-dev libxml2-dev libssl-dev libjson-c-dev
@@ -29,27 +29,23 @@ USE:
     Your Hubic Cloud configuration can be placed in a file named
     $HOME/.cloudfuse. All the following variables are required:
 
-        username=[Hubic user e-mail]
-        password=[Hubic password]
         client_id=[Hubic client id for the registered application]
         client_secret=[Hubic client secret for the registered application]
-        redirect_uri=[Hubic redirect uri as registered for the application]
+        refresh_token=[A refresh token you got from the script]
 
-    client_id, client_secret and redirect_uri can be retrieved from the hubic
+    client_id, client_secret can be retrieved from the hubic
     web interface: https://hubic.com/home/browser/developers/
+
+    The refresh_token can be obtained running the script provided (hubic_token)
+    or with any other method you like if you follow the example at https://api.hubic.com
 
     Then you can call hubicfuse:
 
         sudo hubicfuse /mnt/hubic -o noauto_cache,sync_read,allow_other
 
-    It is possible to pass (or override) some variables on the command line:
-
-        sudo hubicfuse /mnt/hubic \
-           -o username='xxx',password='xxx',noauto_cache,sync_read,allow_other
-
     And finaly, it can be set in /etc/fstab:
 
-        hubicfuse /mnt/hubic fuse username=xxx,password=xxx...,user,noauto 0 0
+        hubicfuse /mnt/hubic fuse user,noauto 0 0
 
     It also inherits a number of command-line arguments and mount options from
     the Fuse framework.  The "-h" argument should provide a summary.
@@ -61,7 +57,7 @@ USE AS NON-ROOT:
        $ sudo usermod -a -G fuse [username]
 
     Mount using the above command without the sudo. The .cloudfuse file is
-    search into the user's home.
+    searched into the user's home.
 
     To unmount use:
 

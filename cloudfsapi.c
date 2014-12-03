@@ -504,13 +504,16 @@ void cloudfs_verify_ssl(int vrfy)
 }
 
 static struct {
-  char username[MAX_HEADER_SIZE], password[MAX_HEADER_SIZE];
+  char client_id    [MAX_HEADER_SIZE];
+  char client_secret[MAX_HEADER_SIZE];
+  char refresh_token[MAX_HEADER_SIZE];
 } reconnect_args;
 
-void cloudfs_set_credentials(char *username, char *password)
+void cloudfs_set_credentials(char *client_id, char *client_secret, char *refresh_token)
 {
-  strncpy(reconnect_args.username, username, sizeof(reconnect_args.username));
-  strncpy(reconnect_args.password, password, sizeof(reconnect_args.password));
+  strncpy(reconnect_args.client_id    , client_id    , sizeof(reconnect_args.client_id    ));
+  strncpy(reconnect_args.client_secret, client_secret, sizeof(reconnect_args.client_secret));
+  strncpy(reconnect_args.refresh_token, refresh_token, sizeof(reconnect_args.refresh_token));
 }
 
 struct htmlString {
@@ -595,16 +598,15 @@ int cloudfs_connect()
   #define HUBIC_TOKEN_URL     "https://api.hubic.com/oauth/token"
   #define HUBIC_AUTH_URL      "https://api.hubic.com/oauth/auth"
   #define HUBIC_CRED_URL      "https://api.hubic.com/1.0/account/credentials"
-  #define HUBIC_CLIENT_ID     (options.client_id)
-  #define HUBIC_CLIENT_SECRET (options.client_secret)
-  #define HUBIC_REDIRECT_URI  (options.redirect_uri)
-  #define HUBIC_USERNAME      (options.username)
-  #define HUBIC_PASSWORD      (options.password)
+  #define HUBIC_CLIENT_ID     (reconnect_args.client_id)
+  #define HUBIC_CLIENT_SECRET (reconnect_args.client_secret)
+  #define HUBIC_REFRESH_TOKEN (reconnect_args.refresh_token)
   #define HUBIC_OPTIONS_SIZE  2048
 
   long response = -1;
   char url[HUBIC_OPTIONS_SIZE];
   char payload[HUBIC_OPTIONS_SIZE];
+  struct json_object *json_obj;
 
   pthread_mutex_lock(&pool_mut);
 
@@ -627,76 +629,16 @@ int cloudfs_connect()
   curl_easy_setopt(curl, CURLOPT_POST, 0L);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writefunc_string);
-  /* Step 1 : request a token */
 
-  char oauthid[HUBIC_OPTIONS_SIZE];
-  char auth_code[HUBIC_OPTIONS_SIZE];
+  /* Step 1 : request a token  - Not needed anymore with refresh_token */
 
-  sprintf (url, "%s?client_id=%s&redirect_uri=%s&scope=usage.r,account.r,getAllLinks.r,credentials.r,activate.w,links.drw&response_type=code&state=none",
-           HUBIC_AUTH_URL, HUBIC_CLIENT_ID, curl_escape(HUBIC_REDIRECT_URI,0));
 
-  curl_easy_setopt(curl, CURLOPT_URL, url);
-  char *json_str = htmlStringGet(curl);
+  /* Step 2 : get request code - Not needed anymore with refresh_token */
 
-  debugf ("HUBIC AUTH_URL (req token) result: '%s'\n", json_str);
-
-  struct json_object *json_obj;
-
-  const char *oauth_pattern = "<input type=\"hidden\" name=\"oauth\" value=\"";
-  char *start, *stop;
-  if ((start = strstr(json_str, oauth_pattern)) != NULL)
-    {
-      start += strlen(oauth_pattern);
-      stop = start;
-      while ((*stop >= '0') && (*stop <= '9'))
-        stop++;
-      strncpy(oauthid, start, stop-start);
-      oauthid[stop-start]='\0';
-    }
-  else
-    {
-      debugf ("HUBIC fails to get oauthid");
-      return 0;
-    }
-
-  debugf ("HUBIC oauthid = '%s'\n", oauthid);
-  free(json_str);
-
-  /* Step 2 : get request code */
-
-  sprintf(payload, "oauth=%s&usage=r&account=r&getAllLinks=r&credentials=r&activate=w&links=r&action=accepted&login=%s&user_pwd=%s&links=w&links=d", oauthid, curl_escape(HUBIC_USERNAME,0), curl_escape(HUBIC_PASSWORD,0));
-
-  curl_easy_setopt(curl, CURLOPT_URL, HUBIC_AUTH_URL);
-  curl_easy_setopt(curl, CURLOPT_POST, 1L);
-  curl_easy_setopt(curl, CURLOPT_HEADER, 1); /* headers needed to get the Location */
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload);
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(payload));
-
-  json_str = htmlStringGet(curl);
-  debugf ("HUBIC AUTH_URL result: '%s'\n", json_str);
-
-  const char *location_pattern = "?code=";
-  if ((start = strstr(json_str, location_pattern)) != NULL)
-    {
-      start += strlen(location_pattern);
-      stop = start;
-      while (*stop != '&')
-        stop++;
-      strncpy(auth_code, start, stop-start);
-      auth_code[stop-start]='\0';
-    }
-  else
-    {
-      debugf ("HUBIC fails to get Location header");
-      return 0;
-    }
-
-  free(json_str);
-  debugf ("HUBIC auth_code = '%s'\n", auth_code);
 
   /* Step 3 : get access token */
 
-  sprintf(payload, "code=%s&redirect_uri=%s&grant_type=authorization_code", auth_code, curl_escape(HUBIC_REDIRECT_URI,0));
+  sprintf(payload, "refresh_token=%s&grant_type=refresh_token", HUBIC_REFRESH_TOKEN);
 
   curl_easy_setopt(curl, CURLOPT_URL, HUBIC_TOKEN_URL);
   curl_easy_setopt(curl, CURLOPT_POST, 1L);
@@ -709,7 +651,7 @@ int cloudfs_connect()
   curl_easy_setopt(curl, CURLOPT_PASSWORD, HUBIC_CLIENT_SECRET);
   curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
 
-  json_str = htmlStringGet(curl);
+  char *json_str = htmlStringGet(curl);
   json_obj = json_tokener_parse(json_str);
   debugf ("HUBIC TOKEN_URL result: '%s'\n", json_str);
   free(json_str);
