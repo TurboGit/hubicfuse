@@ -57,7 +57,7 @@ USE AS NON-ROOT:
        $ sudo usermod -a -G fuse [username]
 
     Mount using the above command without the sudo. The .cloudfuse file is
-    search into the user's home.
+    searched into the user's home.
 
     To unmount use:
 
