@@ -46,7 +46,7 @@
 #              No other gnu utility is necessary to run this script!
 #              Optionnaly, if you have dd and base64, you will get a better
 #              random seed, but that is not mandatory at all.
-#                 
+#
 # Version : 1.0.0
 # -------
 #
@@ -56,7 +56,7 @@
 # Author : Alain BENEDETTI
 # ------
 #
-# History : 
+# History :
 # -------
 #  1.0.0
 #  - Initial version
@@ -399,7 +399,7 @@ fi
 #         status code. Should such error happen, we will then try to extract and       |
 #         display the documented message. Again if this documented message cannot be   |
 #         extracted, or we have another HTTP status, the whole response is dumped.     |
-#                                                                                      | 
+#                                                                                      |
 # STEP2: getting oauth                                                                 |
 #        The expected response is a html page with HTTP status 200.                    |
 #        From this page we extract 'oauth' which is the value here:                    |
@@ -408,7 +408,7 @@ fi
 # --------------------------------------------------------------------------------------
 STEP=2
 
-  # FALLBACK: if either dd or base64 are not found or fail, we keep the initial 
+  # FALLBACK: if either dd or base64 are not found or fail, we keep the initial
   #           RANDOM_STR, thus it is not random anymore, but at least the script works!
 rnd="$(dd if=/dev/urandom bs=1 count=33 2>/dev/null | base64 -w 0 2>/dev/null)" && RANDOM_STR="${rnd}"
 
@@ -500,13 +500,13 @@ fi
 #        Documented errors are with 400 and 401 return codes. We don't try to extract  |
 #        error strings with wget, because wget simply exits with an error when not     |
 #        receiving a 200 (the exception is 302 with can still be caugh). So when using |
-#        wget, either this works (200) or we display the whole response.               |        
+#        wget, either this works (200) or we display the whole response.               |
 # --------------------------------------------------------------------------------------
 STEP=4
 
 POST="client_id=${client_id}&client_secret=${client_secret}&code=${code}&grant_type=authorization_code"
 
-if [ "${CURL}" = 'wget' ]; then 
+if [ "${CURL}" = 'wget' ]; then
     POST="${POST}&redirect_uri=${redirect_uri}"
     CURL_ENCODE='-q'
     REDIR='-q'

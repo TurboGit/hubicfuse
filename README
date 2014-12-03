@@ -13,7 +13,7 @@ BUILDING:
     For CentOS or similar,
         yum install gcc make fuse-devel curl-devel libxml2-devel \
             openssl-devel json-c-devel
-            
+
     For Debian or Ubuntu,
         apt-get install gcc make libfuse-dev libcurl-dev \
             libcurl4-openssl-dev libxml2-dev libssl-dev libjson-c-dev
