@@ -43,14 +43,9 @@ USE:
 
         sudo hubicfuse /mnt/hubic -o noauto_cache,sync_read,allow_other
 
-    It is possible to pass (or override) some variables on the command line:
-
-        sudo hubicfuse /mnt/hubic \
-           -o username='xxx',password='xxx',noauto_cache,sync_read,allow_other
-
     And finaly, it can be set in /etc/fstab:
 
-        hubicfuse /mnt/hubic fuse username=xxx,password=xxx...,user,noauto 0 0
+        hubicfuse /mnt/hubic fuse user,noauto 0 0
 
     It also inherits a number of command-line arguments and mount options from
     the Fuse framework.  The "-h" argument should provide a summary.
