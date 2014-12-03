@@ -551,6 +551,6 @@ echo "${MSG_SUCCESS}" >&2
 echo  >&2
 echo  >&2
 echo "${MSG_HEAD_RESULT}"
-echo "client_id=\"${client_id}\""
-echo "client_secret=\"${client_secret}\""
-echo "refresh_token=\"${refresh_token}\""
+echo "client_id=${client_id}"
+echo "client_secret=${client_secret}"
+echo "refresh_token=${refresh_token}"
