@@ -64,7 +64,7 @@
 # Contributor :  // Add your name if you contribute and redistribute //
 # -----------
 #  - Sofiane, who gave me the initial raw version of the full connection script.
-#
+#  - Pascal Obry - added the URL encoding of user password
 
 # ======================================================================================
 # General notes:  the script is written to work on the Ubuntu's default shell (dash),
@@ -242,6 +242,35 @@ error()
     exit $(( ${STEP} + 100 ))
 }
 
+# --------------------------------------------------------------------------------------
+# URL encoder                                                                          |
+# $1 is a string to be passed as URL parameter                                         |
+# the string is URL encoded and returned as result                                     |
+# --------------------------------------------------------------------------------------
+
+urlenc()
+{
+    echo $1 | sed -e 's|%|%21|g' \
+                  -e 's|!|%21|g' \
+                  -e 's|#|%23|g' \
+                  -e 's|\$|%24|g' \
+                  -e 's| |%20|g' \
+                  -e 's|&|%26|g' \
+                  -e "s|'|%27|g" \
+                  -e 's|(|%28|g' \
+                  -e 's|)|%29|g' \
+                  -e 's|*|%2A|g' \
+                  -e 's|+|%2B|g' \
+                  -e 's|,|%2C|g' \
+                  -e 's|/|%2F|g' \
+                  -e 's|:|%3A|g' \
+                  -e 's|;|%3B|g' \
+                  -e 's|=|%3D|g' \
+                  -e 's|?|%3F|g' \
+                  -e 's|@|%40|g' \
+                  -e 's|\[|%5B|g' \
+                  -e 's|]|%5D|g'
+}
 
 # --------------------------------------------------------------------------------------
 # STEP 0: Read arguments.                                                              |
@@ -467,7 +496,7 @@ out="$(
         stty echo 2>/dev/null
     fi
     printf '\n' >&2
-    POST="$( printf '%s' "${scope}" | sed 's|,|\&|g;s|\.|=|g' )&oauth=${oauth}&action=accepted&login=${user_login}&user_pwd=${user_pwd}"
+    POST="$( printf '%s' "${scope}" | sed 's|,|\&|g;s|\.|=|g' )&oauth=${oauth}&action=accepted&login=${user_login}&user_pwd=$(urlenc ${user_pwd})"
 
     ccurl "${URL_AUTH}/auth/" "${CURL_DATA}" "${POST}"
 
