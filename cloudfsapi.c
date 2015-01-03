@@ -596,7 +596,6 @@ int safe_json_string(json_object *jobj, char *buffer, char *name)
 int cloudfs_connect()
 {
   #define HUBIC_TOKEN_URL     "https://api.hubic.com/oauth/token"
-  #define HUBIC_AUTH_URL      "https://api.hubic.com/oauth/auth"
   #define HUBIC_CRED_URL      "https://api.hubic.com/1.0/account/credentials"
   #define HUBIC_CLIENT_ID     (reconnect_args.client_id)
   #define HUBIC_CLIENT_SECRET (reconnect_args.client_secret)
