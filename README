@@ -2,6 +2,11 @@
 HubicFuse is a FUSE application which provides access to Hubic's
 cloud files via a mount-point.
 
+This version contains support for DLO, symlinks and support to see other
+tenant's containers. Those features are coming from:
+
+   https://github.com/LabAdvComp/cloudfuse.git
+
 BUILDING:
 
     You'll need libcurl, fuse, libssl, and libxml2 (and probably their dev
@@ -79,16 +84,16 @@ BUGS/SHORTCOMINGS:
 
 AWESOME CONTRIBUTORS:
 
-    * Pascal Obry                                  https://github.com/TurboGit
-    * Tim Dysinger                                 https://github.com/dysinger
-    * Chris Wedgwood                               https://github.com/cwedgwood
-    * Nick Craig-Wood                              https://github.com/ncw
-    * Dillon Amburgey                              https://github.com/dillona
-    * Manfred Touron                               https://github.com/moul
-    * David Brownlee                               https://github.com/abs0
-    * Mike Lundy                                   https://github.com/novas0x2a
-    * justinb                                      https://github.com/justinsb
-
+    * Pascal Obry                        https://github.com/TurboGit
+    * Tim Dysinger                       https://github.com/dysinger
+    * Chris Wedgwood                     https://github.com/cwedgwood
+    * Nick Craig-Wood                    https://github.com/ncw
+    * Dillon Amburgey                    https://github.com/dillona
+    * Manfred Touron                     https://github.com/moul
+    * David Brownlee                     https://github.com/abs0
+    * Mike Lundy                         https://github.com/novas0x2a
+    * justinb                            https://github.com/justinsb
+    * Matt Greenway                      https://github.com/LabAdvComp
 
 Thanks, and I hope you find it useful.
 
