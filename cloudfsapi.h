@@ -58,6 +58,9 @@ long segment_above;
 char *override_storage_url;
 char *public_container;
 
+int file_exists(const char *fname);
+const char * get_mimetype ( const char *filename );
+
 int cloudfs_object_read_fp(const char *path, FILE *fp);
 int cloudfs_object_write_fp(const char *path, FILE *fp);
 int cloudfs_list_directory(const char *path, dir_entry **);
