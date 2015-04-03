@@ -4584,6 +4584,14 @@ $as_echo "#define HAVE_OPENSSL /**/" >>confdefs.h
 fi
 
 
+ac_fn_c_check_header_mongrel "$LINENO" "magic.h" "ac_cv_header_magic_h" "$ac_includes_default"
+if test "x$ac_cv_header_magic_h" = xyes; then :
+
+else
+  as_fn_error $? "'Unable to find libmagic headers.  Please make sure header files are installed.'" "$LINENO" 5
+fi
+
+
 
 # Checks for typedefs, structures, and compiler characteristics.
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for an ANSI C-conforming const" >&5
