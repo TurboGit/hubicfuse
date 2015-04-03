@@ -13,18 +13,20 @@ BUILDING:
     packages) installed to build it.
 
     For CentOS or similar:
-        yum install gcc make fuse-devel curl-devel libxml2-devel \
-            openssl-devel json-c-devel
+        $ yum install gcc make fuse-devel curl-devel libxml2-devel \
+            openssl-devel json-c-devel file-devel
+
+        $ PKG_CONFIG_PATH=/lib64/pkgconfig ./configure
 
     For GNU/Debian or Ubuntu:
-        apt-get install gcc make curl libfuse-dev pkg-config \
+        $ apt-get install gcc make curl libfuse-dev pkg-config \
             libcurl4-openssl-dev libxml2-dev libssl-dev libjson-c-dev \
             libmagic-dev
 
-    Cloudfuse is built and installed like any other autoconf configured code.
-    Normally:
+        $ ./configure
 
-        ./configure
+    Then just compile and install:
+
         make
         sudo make install
 
