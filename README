@@ -18,7 +18,8 @@ BUILDING:
 
     For GNU/Debian or Ubuntu:
         apt-get install gcc make curl libfuse-dev pkg-config \
-            libcurl4-openssl-dev libxml2-dev libssl-dev libjson-c-dev
+            libcurl4-openssl-dev libxml2-dev libssl-dev libjson-c-dev \
+            libmagic-dev
 
     Cloudfuse is built and installed like any other autoconf configured code.
     Normally:
