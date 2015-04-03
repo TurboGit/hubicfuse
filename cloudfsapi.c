@@ -514,7 +514,7 @@ void cloudfs_init()
   }
 }
 
-int file_exists(const char *fname)
+int file_is_readable(const char *fname)
 {
     FILE *file;
     if ( file = fopen( fname, "r" ) )
@@ -525,21 +525,22 @@ int file_exists(const char *fname)
     return 0;
 }
 
-const char * get_mimetype ( const char *filename )
+const char * get_file_mimetype ( const char *path )
 {
-    const char *mime;
-
-    if( file_exists( filename ) == 1 )
+    if( file_is_readable( path ) == 1 )
     {
       magic_t magic;
+      const char *mime;
 
       magic = magic_open( MAGIC_MIME_TYPE );
       magic_load( magic, NULL );
       magic_compile( magic, NULL );
-      mime = magic_file( magic, filename );
+      mime = magic_file( magic, path );
       magic_close( magic );
+
       return mime;
   }
+
   const char *error = "application/octet-stream";
   return error;
 }
@@ -550,7 +551,7 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
 
   long flen;
   fflush(fp);
-  const char *filemimetype = get_mimetype( path );
+  const char *filemimetype = get_file_mimetype( path );
 
   // determine the size of the file and segment if it is above the threshhold
   fseek(fp, 0, SEEK_END);
