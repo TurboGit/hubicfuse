@@ -346,11 +346,7 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
       // that file.
 
       // TODO: just to prevent this craziness for now
-      if (*temp_dir)
-        temp_file = fopen(file_path, "w+b");
-      else
-        temp_file = tmpfile();
-
+      temp_file = fopen(file_path, "w+b");
 
       if (!cloudfs_object_write_fp(path, temp_file))
       {
