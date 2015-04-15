@@ -376,6 +376,8 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
 
   openfile *of = (openfile *)malloc(sizeof(openfile));
   of->fd = dup(fileno(temp_file));
+  if (of->fd == -1)
+    return -ENOENT;
   fclose(temp_file);
   of->flags = info->flags;
   info->fh = (uintptr_t)of;
