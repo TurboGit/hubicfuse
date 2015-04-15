@@ -289,10 +289,11 @@ static int cfs_create(const char *path, mode_t mode, struct fuse_file_info *info
 
 static int cfs_open(const char *path, struct fuse_file_info *info)
 {
-  //TODO: need to clean this up and reduce the duplicated code
+  FILE *temp_file;
+
   if (!*temp_dir) {
 
-    FILE *temp_file = tmpfile();
+    temp_file = tmpfile();
     dir_entry *de = path_info(path);
     if (!(info->flags & O_WRONLY))
     {
@@ -303,67 +304,61 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
       }
       update_dir_cache(path, (de ? de->size : 0), 0, 0);
     }
-    openfile *of = (openfile *)malloc(sizeof(openfile));
-    of->fd = dup(fileno(temp_file));
-    fclose(temp_file);
-    of->flags = info->flags;
-    info->fh = (uintptr_t)of;
-    info->direct_io = 1;
-    return 0;
   }
+  else
+  {
+    char tmp_path[PATH_MAX];
+    strncpy(tmp_path, path, PATH_MAX);
 
+    char *pch;
+    while((pch = strchr(tmp_path, '/'))) {
+      *pch = '.';
+    }
 
-  FILE *temp_file;
+    char file_path[PATH_MAX];
+    snprintf(file_path, PATH_MAX, "%s/.cloudfuse%ld-%s", temp_dir,
+             (long)getpid(), tmp_path);
 
-  char tmp_path[PATH_MAX];
-  strncpy(tmp_path, path, PATH_MAX);
+    dir_entry *de = path_info(path);
 
-  char *pch;
-  while((pch = strchr(tmp_path, '/'))) {
-    *pch = '.';
-  }
+    if(access(file_path, F_OK) != -1) {
+      temp_file = fopen(file_path, "r");
+      update_dir_cache(path, (de ? de->size : 0), 0, 0);
+      // file exists
+    }
+    else if (!(info->flags & O_WRONLY))
+    {
+      // we need to lock on the filename another process could open the file
+      // while we are writing to it and then only read part of the file
 
-  char file_path[PATH_MAX];
-  snprintf(file_path, PATH_MAX, "%s/.cloudfuse%ld-%s", temp_dir,
-      (long)getpid(), tmp_path);
+      // duplicate the directory caching datastructure to make the code easier
+      // to understand.
 
-  dir_entry *de = path_info(path);
+      // each file in the cache needs:
+      //  filename, is_writing, last_closed, is_removing
+      // the first time a file is opened a new entry is created in the cache
+      // setting the filename and is_writing to true.  This check needs to be
+      // wrapped with a lock.
+      //
+      // each time a file is closed we set the last_closed for the file to now
+      // and we check the cache for files whose last
+      // closed is greater than cache_timeout, then start a new thread rming
+      // that file.
 
-  if(access(file_path, F_OK) != -1) {
-    temp_file = fopen(file_path, "r");
-    update_dir_cache(path, (de ? de->size : 0), 0, 0);
-    // file exists
-  } else if (!(info->flags & O_WRONLY)) {
-    // we need to lock on the filename another process could open the file
-    // while we are writing to it and then only read part of the file
-
-    // duplicate the directory caching datastructure to make the code easier
-    // to understand.
-
-    // each file in the cache needs:
-    //  filename, is_writing, last_closed, is_removing
-    // the first time a file is opened a new entry is created in the cache
-    // setting the filename and is_writing to true.  This check needs to be
-    // wrapped with a lock.
-    //
-    // each time a file is closed we set the last_closed for the file to now
-    // and we check the cache for files whose last
-    // closed is greater than cache_timeout, then start a new thread rming
-    // that file.
-
-    // TODO: just to prevent this craziness for now
-    if (*temp_dir)
+      // TODO: just to prevent this craziness for now
+      if (*temp_dir)
         temp_file = fopen(file_path, "w+b");
-    else
+      else
         temp_file = tmpfile();
 
 
-    if (!cloudfs_object_write_fp(path, temp_file))
-    {
-      fclose(temp_file);
-      return -ENOENT;
+      if (!cloudfs_object_write_fp(path, temp_file))
+      {
+        fclose(temp_file);
+        return -ENOENT;
+      }
+      update_dir_cache(path, (de ? de->size : 0), 0, 0);
     }
-    update_dir_cache(path, (de ? de->size : 0), 0, 0);
   }
 
   openfile *of = (openfile *)malloc(sizeof(openfile));
