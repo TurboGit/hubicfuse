@@ -290,22 +290,9 @@ static int cfs_create(const char *path, mode_t mode, struct fuse_file_info *info
 static int cfs_open(const char *path, struct fuse_file_info *info)
 {
   FILE *temp_file;
+  dir_entry *de = path_info(path);
 
-  if (!*temp_dir) {
-
-    temp_file = tmpfile();
-    dir_entry *de = path_info(path);
-    if (!(info->flags & O_WRONLY))
-    {
-      if (!cloudfs_object_write_fp(path, temp_file))
-      {
-        fclose(temp_file);
-        return -ENOENT;
-      }
-      update_dir_cache(path, (de ? de->size : 0), 0, 0);
-    }
-  }
-  else
+  if (*temp_dir)
   {
     char tmp_path[PATH_MAX];
     strncpy(tmp_path, path, PATH_MAX);
@@ -319,12 +306,10 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
     snprintf(file_path, PATH_MAX, "%s/.cloudfuse%ld-%s", temp_dir,
              (long)getpid(), tmp_path);
 
-    dir_entry *de = path_info(path);
-
-    if(access(file_path, F_OK) != -1) {
-      temp_file = fopen(file_path, "r");
-      update_dir_cache(path, (de ? de->size : 0), 0, 0);
+    if(access(file_path, F_OK) != -1)
+    {
       // file exists
+      temp_file = fopen(file_path, "r");
     }
     else if (!(info->flags & O_WRONLY))
     {
@@ -353,9 +338,22 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
         fclose(temp_file);
         return -ENOENT;
       }
-      update_dir_cache(path, (de ? de->size : 0), 0, 0);
     }
   }
+  else
+  {
+    temp_file = tmpfile();
+    if (!(info->flags & O_WRONLY))
+    {
+      if (!cloudfs_object_write_fp(path, temp_file))
+      {
+        fclose(temp_file);
+        return -ENOENT;
+      }
+    }
+  }
+
+  update_dir_cache(path, (de ? de->size : 0), 0, 0);
 
   openfile *of = (openfile *)malloc(sizeof(openfile));
   of->fd = dup(fileno(temp_file));
