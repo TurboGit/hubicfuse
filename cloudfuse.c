@@ -276,7 +276,26 @@ static int cfs_mkdir(const char *path, mode_t mode)
 
 static int cfs_create(const char *path, mode_t mode, struct fuse_file_info *info)
 {
-  FILE *temp_file = tmpfile();
+  FILE *temp_file;
+
+  if (*temp_dir)
+    {
+      char tmp_path[PATH_MAX];
+      strncpy(tmp_path, path, PATH_MAX);
+
+      char *pch;
+      while((pch = strchr(tmp_path, '/'))) {
+        *pch = '.';
+      }
+
+      char file_path[PATH_MAX];
+      snprintf(file_path, PATH_MAX, "%s/.cloudfuse%ld-%s", temp_dir,
+               (long)getpid(), tmp_path);
+      temp_file = fopen(file_path, "w+b");
+    }
+  else
+    temp_file = tmpfile();
+
   openfile *of = (openfile *)malloc(sizeof(openfile));
   of->fd = dup(fileno(temp_file));
   fclose(temp_file);
