@@ -496,7 +496,7 @@ out="$(
         stty echo 2>/dev/null
     fi
     printf '\n' >&2
-    POST="$( printf '%s' "${scope}" | sed 's|,|\&|g;s|\.|=|g' )&oauth=${oauth}&action=accepted&login=${user_login}&user_pwd=$(urlenc "${user_pwd}")"
+    POST="$( printf '%s' "${scope}" | sed 's|,|\&|g;s|\.|=|g' )&oauth=${oauth}&action=accepted&login=$(urlenc "${user_login}")&user_pwd=$(urlenc "${user_pwd}")"
 
     ccurl "${URL_AUTH}/auth/" "${CURL_DATA}" "${POST}"
 
