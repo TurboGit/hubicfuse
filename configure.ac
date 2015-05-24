@@ -2,7 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([hubicfuse], [1.0.1], [Pascal Obry <pascal@obry.net>])
+AC_INIT([hubicfuse], [2.1.0], [Pascal Obry <pascal@obry.net>])
+AC_SUBST(CPPFLAGS, "$CPPFLAGS -D_FILE_OFFSET_BITS=64 -I/usr/include/libxml2")
 AC_LANG([C])
 AC_CONFIG_SRCDIR([cloudfuse.c])
 AC_CONFIG_HEADER([config.h])
