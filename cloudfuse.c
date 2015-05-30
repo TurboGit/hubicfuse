@@ -17,8 +17,15 @@
 #include "cloudfsapi.h"
 #include "config.h"
 
-static int cache_timeout;
+#define CACHE_TIMEOUT "600"
+#define VERIFY_SSL "true"
+#define SEGMENT_SIZE "1073741824"
+#define MIN_SEGMENT_SIZE 10485760 /* is 10 times less than SEGMENT_SIZE fine ?*/
+#define SEGMENT_ABOVE "2147483647"
+
+static unsigned int cache_timeout;
 static char *temp_dir;
+static int cloudfuse_debug;
 
 typedef struct dir_cache
 {
@@ -70,13 +77,23 @@ static int caching_list_directory(const char *path, dir_entry **list)
   if (!cw)
   {
     if (!cloudfs_list_directory(path, list))
+    {
+      fprintf(stderr,"HERE : caching_list_directory failed at cloudfs_list_directory on %s.\n",path);
+      fprintf(stderr,"HERE : Unlocking.\n");
+      pthread_mutex_unlock(&dmut);
       return  0;
+    }
     cw = new_cache(path);
   }
   else if (cache_timeout > 0 && (time(NULL) - cw->cached > cache_timeout))
   {
     if (!cloudfs_list_directory(path, list))
+    {
+      fprintf(stderr,"HERE : caching_list_directory failed at cloudfs_list_directory on %s.\n",path);
+      fprintf(stderr,"HERE : Unlocking.\n");
+      pthread_mutex_unlock(&dmut);
       return  0;
+    }
     cloudfs_free_dir_list(cw->entries);
     cw->cached = time(NULL);
   }
@@ -448,6 +465,7 @@ static int cfs_write(const char *path, const char *buf, size_t length, off_t off
 
 static int cfs_unlink(const char *path)
 {
+  fprintf(stderr,"HERE : Unlinking %s.\n",path);
   int success = cloudfs_delete_object(path);
   if (success == -1)
     return -EACCES;
@@ -466,8 +484,10 @@ static int cfs_fsync(const char *path, int idunno, struct fuse_file_info *info)
 
 static int cfs_truncate(const char *path, off_t size)
 {
-  cloudfs_object_truncate(path, size);
-  return 0;
+  if (cloudfs_object_truncate(path, size))
+	return 0;
+  fprintf(stderr,"HERE : We fail at truncating %s.\n",path);
+  return -EIO;
 }
 
 static int cfs_statfs(const char *path, struct statvfs *stat)
@@ -498,10 +518,15 @@ static int cfs_rename(const char *src, const char *dst)
     return -EISDIR;
   if (cloudfs_copy_object(src, dst))
   {
+	fprintf(stderr,"HERE : Copied %s to %s.\n",src,dst);
     /* FIXME this isn't quite right as doesn't preserve last modified */
     update_dir_cache(dst, src_de->size, 0, 0);
-    return cfs_unlink(src);
+    int rtnCopyAndUnlink = cfs_unlink(src);
+    if (rtnCopyAndUnlink)
+		fprintf(stderr,"HERE : We fail at unlinking after successful copy.\n");
+    return rtnCopyAndUnlink;
   }
+  fprintf(stderr,"HERE : We fail at copying %s to %s.\n",src,dst);
   return -EIO;
 }
 
@@ -512,6 +537,7 @@ static int cfs_symlink(const char *src, const char *dst)
     update_dir_cache(dst, 1, 0, 1);
     return 0;
   }
+  fprintf(stderr,"HERE : We fail at symlinking %s to %s.\n",src,dst);
   return -EIO;
 }
 
@@ -552,10 +578,10 @@ char *get_home_dir()
 }
 
 FuseOptions options = {
-    .cache_timeout = "600",
-    .verify_ssl = "true",
-    .segment_size = "1073741824",
-    .segment_above = "2147483647",
+    .cache_timeout = CACHE_TIMEOUT,
+    .verify_ssl = VERIFY_SSL,
+    .segment_size = SEGMENT_SIZE,
+    .segment_above = SEGMENT_ABOVE,
     .storage_url = "",
     .container = "",
     //.temp_dir = "/tmp/",
@@ -578,8 +604,9 @@ int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs
       sscanf(arg, " client_secret = %[^\r\n ]", options.client_secret) ||
       sscanf(arg, " refresh_token = %[^\r\n ]", options.refresh_token))
     return 0;
-  if (!strcmp(arg, "-f") || !strcmp(arg, "-d") || !strcmp(arg, "debug"))
-    cloudfs_debug(1);
+  if (!strcmp(arg, "-f") || !strcmp(arg, "-d") || !strcmp(arg, "debug")) {
+    cloudfuse_debug = 1;
+  }
   return 1;
 }
 
@@ -594,12 +621,12 @@ int main(int argc, char **argv)
   {
     char line[OPTION_SIZE];
     while (fgets(line, sizeof(line), settings))
-      parse_option(NULL, line, -1, &args);
+	parse_option(NULL, line, -1, &args);
     fclose(settings);
   }
 
   fuse_opt_parse(&args, &options, NULL, parse_option);
-
+  cloudfs_debug(cloudfuse_debug);
   cache_timeout = atoi(options.cache_timeout);
   segment_size = atoll(options.segment_size);
   segment_above = atoll(options.segment_above);
@@ -617,15 +644,47 @@ int main(int argc, char **argv)
     fprintf(stderr, "  client_secret=[App's secret]\n");
     fprintf(stderr, "  refresh_token=[Get it running hubic_token]\n");
     fprintf(stderr, "The following settings are optional:\n\n");
-    fprintf(stderr, "  cache_timeout=[Seconds for directory caching, default 600]\n");
-    fprintf(stderr, "  verify_ssl=[False to disable SSL cert verification]\n");
-    fprintf(stderr, "  segment_size=[Size to use when creating DLOs, default 1073741824]\n");
-    fprintf(stderr, "  segment_above=[File size at which to use segments, defult 2147483648]\n");
+    fprintf(stderr, "  cache_timeout=[Seconds for directory caching, default %ss]\n", CACHE_TIMEOUT);
+    fprintf(stderr, "  verify_ssl=[False to disable SSL cert verification, default %s]\n", VERIFY_SSL);
+    fprintf(stderr, "  segment_size=[Size to use when creating DLOs, default %s kb]\n", SEGMENT_SIZE);
+    fprintf(stderr, "  segment_above=[File size at which to use segments, default %s kb]\n", SEGMENT_ABOVE);
     fprintf(stderr, "  storage_url=[Storage URL for other tenant to view container]\n");
     fprintf(stderr, "  container=[Public container to view of tenant specified by storage_url]\n");
     fprintf(stderr, "  temp_dir=[Directory to store temp files]\n");
 
     return 1;
+  }
+
+  if (segment_size < MIN_SEGMENT_SIZE)
+  {
+	fprintf(stderr,"segment_size parameter is too small (%lld). Defaulting to %s.\n",segment_size,SEGMENT_SIZE);
+	segment_size = atoll(SEGMENT_SIZE);
+  }
+  if (segment_above < MIN_SEGMENT_SIZE+1)
+  {
+	fprintf(stderr,"segment_above parameter is too small (%lld). Defaulting to %s.\n",segment_above,SEGMENT_ABOVE);
+	segment_above = atoll(SEGMENT_ABOVE);
+  }
+
+  if (segment_size > segment_above)
+  {
+	fprintf(stderr,"segment_size parameter (%lld) is bigger than segment_above parameter (%lld). Defaulting respectively to %s and %s.\n",segment_size, segment_above,SEGMENT_SIZE,SEGMENT_ABOVE);
+	segment_size = atoll(SEGMENT_SIZE);
+	segment_above = atoll(SEGMENT_ABOVE);
+  }
+
+  if (cloudfuse_debug)
+  {
+    fprintf(stderr,"Configuration values\n");
+    fprintf(stderr,"cache_timeout : %d s\n",cache_timeout);
+    fprintf(stderr,"verify_ssl : %s\n",options.verify_ssl);
+    fprintf(stderr,"options.segment_size : %s kb\n",&options.segment_size);
+    fprintf(stderr,"segment_size : %lld kb\n",segment_size);
+    fprintf(stderr,"options.segment_above : %s kb\n",&options.segment_above);
+    fprintf(stderr,"segment_above : %lld kb\n", segment_above);
+    fprintf(stderr,"storage_url : %s\n",override_storage_url);
+    fprintf(stderr,"container : %s\n",public_container);
+    fprintf(stderr,"temp_dir : %s\n",temp_dir);
   }
 
   cloudfs_init();
