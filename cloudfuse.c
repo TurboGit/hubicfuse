@@ -79,7 +79,7 @@ static int caching_list_directory(const char *path, dir_entry **list)
     if (!cloudfs_list_directory(path, list))
     {
       fprintf(stderr,"HERE : caching_list_directory failed at cloudfs_list_directory on %s.\n",path);
-      fprintf(stderr,"HERE : Unlocking.\n",path);
+      fprintf(stderr,"HERE : Unlocking.\n");
       pthread_mutex_unlock(&dmut);
       return  0;
     }
@@ -90,7 +90,7 @@ static int caching_list_directory(const char *path, dir_entry **list)
     if (!cloudfs_list_directory(path, list))
     {
       fprintf(stderr,"HERE : caching_list_directory failed at cloudfs_list_directory on %s.\n",path);
-      fprintf(stderr,"HERE : Unlocking.\n",path);
+      fprintf(stderr,"HERE : Unlocking.\n");
       pthread_mutex_unlock(&dmut);
       return  0;
     }
