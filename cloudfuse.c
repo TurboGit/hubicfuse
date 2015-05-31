@@ -640,8 +640,8 @@ int main(int argc, char **argv)
     fprintf(stderr, "The following settings are optional:\n\n");
     fprintf(stderr, "  cache_timeout=[Seconds for directory caching, default %ss]\n", CACHE_TIMEOUT);
     fprintf(stderr, "  verify_ssl=[False to disable SSL cert verification, default %s]\n", VERIFY_SSL);
-    fprintf(stderr, "  segment_size=[Size to use when creating DLOs, default %s kb]\n", SEGMENT_SIZE);
-    fprintf(stderr, "  segment_above=[File size at which to use segments, default %s kb]\n", SEGMENT_ABOVE);
+    fprintf(stderr, "  segment_size=[Size to use when creating DLOs, default %s b]\n", SEGMENT_SIZE);
+    fprintf(stderr, "  segment_above=[File size at which to use segments, default %s b]\n", SEGMENT_ABOVE);
     fprintf(stderr, "  storage_url=[Storage URL for other tenant to view container]\n");
     fprintf(stderr, "  container=[Public container to view of tenant specified by storage_url]\n");
     fprintf(stderr, "  temp_dir=[Directory to store temp files]\n");
