@@ -1,28 +1,4 @@
-#define FUSE_USE_VERSION 26
-#include <fuse.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-#include <errno.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <pthread.h>
-#include <pwd.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <stdint.h>
-#include <stddef.h>
-#include "cloudfsapi.h"
-#include "config.h"
-
-#define CACHE_TIMEOUT "600"
-#define VERIFY_SSL "true"
-#define SEGMENT_SIZE "1073741824"
-#define MIN_SEGMENT_SIZE 10485760 /* is 10 times less than SEGMENT_SIZE fine ?*/
-#define SEGMENT_ABOVE "2147483647"
-
+#include "cloudfuse.h"
 static unsigned int cache_timeout;
 static char *temp_dir;
 static int cloudfuse_debug;
@@ -78,8 +54,8 @@ static int caching_list_directory(const char *path, dir_entry **list)
   {
     if (!cloudfs_list_directory(path, list))
     {
-      fprintf(stderr,"HERE : caching_list_directory failed at cloudfs_list_directory on %s.\n",path);
-      fprintf(stderr,"HERE : Unlocking.\n");
+      fprintf(stderr,"hubicfuse_DBG : caching_list_directory failed at cloudfs_list_directory on %s.\n",path);
+      fprintf(stderr,"hubicfuse_DBG : Unlocking.\n");
       pthread_mutex_unlock(&dmut);
       return  0;
     }
@@ -89,8 +65,8 @@ static int caching_list_directory(const char *path, dir_entry **list)
   {
     if (!cloudfs_list_directory(path, list))
     {
-      fprintf(stderr,"HERE : caching_list_directory failed at cloudfs_list_directory on %s.\n",path);
-      fprintf(stderr,"HERE : Unlocking.\n");
+      fprintf(stderr,"hubicfuse_DBG : caching_list_directory failed at cloudfs_list_directory on %s.\n",path);
+      fprintf(stderr,"hubicfuse_DBG : Unlocking.\n");
       pthread_mutex_unlock(&dmut);
       return  0;
     }
@@ -262,6 +238,11 @@ static int cfs_fgetattr(const char *path, struct stat *stbuf, struct fuse_file_i
   if (of)
   {
     stbuf->st_size = cloudfs_file_size(of->fd);
+    if (stbuf->st_size == -1) {
+        int errsv = errno;
+        debugf("hubicfuse_DBG : Error getting size of %s : %s",path,strerror(errsv));
+        return errsv;
+    }
     stbuf->st_mode = S_IFREG | 0666;
     stbuf->st_nlink = 1;
     return 0;
@@ -269,7 +250,7 @@ static int cfs_fgetattr(const char *path, struct stat *stbuf, struct fuse_file_i
   return -ENOENT;
 }
 
-static int cfs_readdir(const char *path, void *buf, fuse_fill_dir_t filldir, off_t offset, struct fuse_file_info *info)
+static int cfs_readdir(const char *path, void *buf, fuse_fill_dir_t filldir, long long int offset, struct fuse_file_info *info)
 {
   dir_entry *de;
   if (!caching_list_directory(path, &de))
@@ -402,7 +383,7 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
   return 0;
 }
 
-static int cfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *info)
+static int cfs_read(const char *path, char *buf, size_t size, long long int offset, struct fuse_file_info *info)
 {
   return pread(((openfile *)(uintptr_t)info->fh)->fd, buf, size, offset);
 }
@@ -412,7 +393,13 @@ static int cfs_flush(const char *path, struct fuse_file_info *info)
   openfile *of = (openfile *)(uintptr_t)info->fh;
   if (of)
   {
-    update_dir_cache(path, cloudfs_file_size(of->fd), 0, 0);
+    off_t flen = cloudfs_file_size(of->fd);
+    if (flen == -1) {
+        int errsv = errno;
+        debugf("hubicfuse_DBG : Error getting size of %s : %s",path,strerror(errsv));
+        return errsv;
+    }
+    update_dir_cache(path, flen, 0, 0);
     if (of->flags & O_RDWR || of->flags & O_WRONLY)
     {
       FILE *fp = fdopen(dup(of->fd), "r");
@@ -447,7 +434,7 @@ static int cfs_rmdir(const char *path)
   return -ENOENT;
 }
 
-static int cfs_ftruncate(const char *path, off_t size, struct fuse_file_info *info)
+static int cfs_ftruncate(const char *path, long long int size, struct fuse_file_info *info)
 {
   openfile *of = (openfile *)(uintptr_t)info->fh;
   if (ftruncate(of->fd, size))
@@ -456,8 +443,7 @@ static int cfs_ftruncate(const char *path, off_t size, struct fuse_file_info *in
   update_dir_cache(path, size, 0, 0);
   return 0;
 }
-
-static int cfs_write(const char *path, const char *buf, size_t length, off_t offset, struct fuse_file_info *info)
+static int cfs_write(const char *path, const char *buf, size_t length, long long int offset, struct fuse_file_info *info)
 {
   update_dir_cache(path, offset + length, 0, 0);
   return pwrite(((openfile *)(uintptr_t)info->fh)->fd, buf, length, offset);
@@ -465,16 +451,24 @@ static int cfs_write(const char *path, const char *buf, size_t length, off_t off
 
 static int cfs_unlink(const char *path)
 {
-  fprintf(stderr,"HERE : Unlinking %s.\n",path);
   int success = cloudfs_delete_object(path);
   if (success == -1)
+  {
+	fprintf(stderr,"hubicfuse_DBG : Error unlinking %s (-EACCES).\n",path);
     return -EACCES;
+  }
   if (success)
   {
     dir_decache(path);
     return 0;
   }
+  fprintf(stderr,"hubicfuse_DBG : Error unlinking %s (-ENOENT).\n",path);
   return -ENOENT;
+}
+
+static int cfs_utimens(const char *path, const struct timespec tv[2])
+{
+  return 0;
 }
 
 static int cfs_fsync(const char *path, int idunno, struct fuse_file_info *info)
@@ -482,11 +476,11 @@ static int cfs_fsync(const char *path, int idunno, struct fuse_file_info *info)
   return 0;
 }
 
-static int cfs_truncate(const char *path, off_t size)
+static int cfs_truncate(const char *path, long long int size)
 {
   if (cloudfs_object_truncate(path, size))
 	return 0;
-  fprintf(stderr,"HERE : We fail at truncating %s.\n",path);
+  fprintf(stderr,"hubicfuse_DBG : Error truncating %s.\n",path);
   return -EIO;
 }
 
@@ -518,15 +512,15 @@ static int cfs_rename(const char *src, const char *dst)
     return -EISDIR;
   if (cloudfs_copy_object(src, dst))
   {
-	fprintf(stderr,"HERE : Copied %s to %s.\n",src,dst);
+	fprintf(stderr,"hubicfuse_DBG : Copied %s to %s successfully.\n",src,dst);
     /* FIXME this isn't quite right as doesn't preserve last modified */
     update_dir_cache(dst, src_de->size, 0, 0);
     int rtnCopyAndUnlink = cfs_unlink(src);
     if (rtnCopyAndUnlink)
-		fprintf(stderr,"HERE : We fail at unlinking after successful copy.\n");
+		fprintf(stderr,"hubicfuse_DBG : Error unlinking %s after successful copy to %s.\n",src,dst);
     return rtnCopyAndUnlink;
   }
-  fprintf(stderr,"HERE : We fail at copying %s to %s.\n",src,dst);
+  fprintf(stderr,"hubicfuse_DBG : Error copying %s to %s.\n",src,dst);
   return -EIO;
 }
 
@@ -537,7 +531,7 @@ static int cfs_symlink(const char *src, const char *dst)
     update_dir_cache(dst, 1, 0, 1);
     return 0;
   }
-  fprintf(stderr,"HERE : We fail at symlinking %s to %s.\n",src,dst);
+  fprintf(stderr,"hubicfuse_DBG : Error symlinking %s to %s.\n",src,dst);
   return -EIO;
 }
 
@@ -678,10 +672,10 @@ int main(int argc, char **argv)
     fprintf(stderr,"Configuration values\n");
     fprintf(stderr,"cache_timeout : %d s\n",cache_timeout);
     fprintf(stderr,"verify_ssl : %s\n",options.verify_ssl);
-    fprintf(stderr,"options.segment_size : %s kb\n",&options.segment_size);
-    fprintf(stderr,"segment_size : %lld kb\n",segment_size);
-    fprintf(stderr,"options.segment_above : %s kb\n",&options.segment_above);
-    fprintf(stderr,"segment_above : %lld kb\n", segment_above);
+    fprintf(stderr,"options.segment_size : %s b\n",options.segment_size);
+    fprintf(stderr,"segment_size : %lld b\n",segment_size);
+    fprintf(stderr,"options.segment_above : %s b\n",options.segment_above);
+    fprintf(stderr,"segment_above : %lld b\n", segment_above);
     fprintf(stderr,"storage_url : %s\n",override_storage_url);
     fprintf(stderr,"container : %s\n",public_container);
     fprintf(stderr,"temp_dir : %s\n",temp_dir);
@@ -719,6 +713,7 @@ int main(int argc, char **argv)
     .truncate = cfs_truncate,
     .write = cfs_write,
     .unlink = cfs_unlink,
+    .utimens = cfs_utimens,
     .fsync = cfs_fsync,
     .statfs = cfs_statfs,
     .chmod = cfs_chmod,

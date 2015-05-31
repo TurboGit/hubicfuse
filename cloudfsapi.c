@@ -1,43 +1,4 @@
-#define _GNU_SOURCE
-#include <stdio.h>
-#include <magic.h>
-#include <string.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#ifdef __linux__
-#include <alloca.h>
-#endif
-#include <pthread.h>
-#include <time.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/time.h>
-#include <libxml/tree.h>
-#include <openssl/bio.h>
-#include <openssl/evp.h>
-#include <json.h>
-#include <libxml/xpath.h>
-#include <libxml/xpathInternals.h>
 #include "cloudfsapi.h"
-#include "config.h"
-#include <fuse.h>
-
-
-#define RHEL5_LIBCURL_VERSION 462597
-#define RHEL5_CERTIFICATE_FILE "/etc/pki/tls/certs/ca-bundle.crt"
-
-#define REQUEST_RETRIES 4
-
-#define MAX_FILES 10000
-
-// 64 bit time + nanoseconds
-#define TIME_CHARS 32
-
-// size of buffer for writing to disk look at ioblksize.h in coreutils
-// and try some values on your own system if you want the best performance
-#define DISK_BUFF_SIZE 32768
 
 static char storage_url[MAX_URL_SIZE];
 static char storage_token[MAX_HEADER_SIZE];
@@ -177,6 +138,7 @@ static int send_request_size(const char *method, const char *path, void *fp,
   char *slash;
   long response = -1;
   int tries = 0;
+  int sleepTime = 1;
 
   if (!storage_url[0])
   {
@@ -275,9 +237,14 @@ static int send_request_size(const char *method, const char *path, void *fp,
     curl_slist_free_all(headers);
     curl_easy_reset(curl);
     return_connection(curl);
+
     if ((response >= 200 && response < 400) || (!strcasecmp(method, "DELETE") && response == 409))
       return response;
-    sleep(8 << tries); // backoff
+
+    debugf("hubicfuse_DBG : method %s - response %d",method,response);
+    debugf("hubicfuse_DBG : %d try : sleeping %d seconds",tries,(sleepTime << tries));
+    sleep(sleepTime << tries); // backoff
+
     if (response == 401 && !cloudfs_connect()) // re-authenticate on 401s
       return response;
     if (xmlctx)
@@ -290,15 +257,23 @@ static int send_request(char *method, const char *path, FILE *fp,
                         xmlParserCtxtPtr xmlctx, curl_slist *extra_headers)
 {
 
-    long flen = 0;
+    off_t flen = 0;
     if (fp) {
       // if we don't flush the size will probably be zero
       fflush(fp);
       flen = cloudfs_file_size(fileno(fp));
+      if (flen == -1) {
+        int errsv = errno;
+        debugf("hubicfuse_DBG : Error getting size of %s : %s",path,strerror(errsv));
+        return -1;
+      }
     }
 
-    return send_request_size(method, path, fp, xmlctx, extra_headers, flen, 0);
+    int response = send_request_size(method, path, fp, xmlctx, extra_headers, flen, 0);
+    if (!(response >= 200 && response < 300))
+      debugf("hubicfuse_DBG : send_request call to send_request_size %s %s failed with response %d", method,path, response);
 
+    return response;
 }
 
 void *upload_segment(void *seginfo)
@@ -311,14 +286,14 @@ void *upload_segment(void *seginfo)
   setvbuf(info->fp, NULL, _IOFBF, DISK_BUFF_SIZE);
 
   snprintf(seg_path, MAX_URL_SIZE, "%s%08i", info->seg_base, info->part);
+  debugf("hubicfuse_DBG : segment upload : %s\n",seg_path);
   char *encoded = curl_escape(seg_path, 0);
 
   int response = send_request_size(info->method, encoded, info, NULL, NULL,
       info->size, 1);
 
   if (!(response >= 200 && response < 300))
-    fprintf(stderr, "Segment upload %s failed with response %d", seg_path,
-         response);
+    debugf("hubicfuse_DBG : upload_segment call to send_request_size %s failed with response %d", seg_path,response);
 
   curl_free(encoded);
   fclose(info->fp);
@@ -327,8 +302,8 @@ void *upload_segment(void *seginfo)
 
 // segment_size is the globabl config variable and size_of_segment is local
 //TODO: return whether the upload/download failed or not
-void run_segment_threads(const char *method, int segments, int full_segments, int remaining,
-        FILE *fp, char *seg_base, int size_of_segments)
+void run_segment_threads(const char *method, int segments, int full_segments, off_t remaining,
+        FILE *fp, char *seg_base, off_t size_of_segments)
 {
     char file_path[PATH_MAX] = "";
     struct segment_info *info = (struct segment_info *)
@@ -340,9 +315,9 @@ void run_segment_threads(const char *method, int segments, int full_segments, in
 #else
     //TODO: I haven't actually tested this
     if (fcntl(fileno(fp), F_GETPATH, file_path) == -1)
-      fprintf(stderr, "couldn't get the path name\n");
+      debugf("couldn't get the path name");
 #endif
-
+	debugf("hubicfuse_DBG : running %d threads",segments);
     int i;
     for (i = 0; i < segments; i++) {
       info[i].method = method;
@@ -375,7 +350,7 @@ void split_path(const char *path, char *seg_base, char *container,
 
   char *remstr;
 
-  while (remstr = strsep(&string, "/")) {
+  while ((remstr = strsep(&string, "/"))) {
       strncat(container, "/",
           MAX_URL_SIZE - strnlen(container, MAX_URL_SIZE));
       strncat(container, _object,
@@ -417,8 +392,8 @@ int is_segmented(const char *path)
 }
 
 
-int format_segments(const char *path, char * seg_base,  long *segments,
-        long *full_segments, long *remaining, long *size_of_segments)
+int format_segments(const char *path, char * seg_base,  int *segments,
+        int *full_segments, off_t *remaining, off_t *size_of_segments)
 {
 
   char container[MAX_URL_SIZE] = "";
@@ -517,7 +492,7 @@ void cloudfs_init()
 int file_is_readable(const char *fname)
 {
     FILE *file;
-    if ( file = fopen( fname, "r" ) )
+    if ((file = fopen( fname, "r" )))
     {
         fclose( file );
         return 1;
@@ -548,14 +523,12 @@ const char * get_file_mimetype ( const char *path )
 
 int cloudfs_object_read_fp(const char *path, FILE *fp)
 {
+  off_t flen;
 
-  long flen;
   fflush(fp);
   const char *filemimetype = get_file_mimetype( path );
 
-  // determine the size of the file and segment if it is above the threshhold
-  fseek(fp, 0, SEEK_END);
-  flen = ftell(fp);
+  flen = cloudfs_file_size(fileno(fp));
 
   // delete the previously uploaded segments
   if (is_segmented(path)) {
@@ -563,11 +536,15 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
       debugf("Couldn't delete one of the existing files while uploading.");
   }
 
+  debugf("hubicfuse_DBG : flen %lld >= segment_above %lld : %d",flen,segment_above,(flen >= segment_above));
   if (flen >= segment_above) {
-    int i;
-    long remaining = flen % segment_size;
+
+    off_t remaining = flen % segment_size;
     int full_segments = flen / segment_size;
     int segments = full_segments + (remaining > 0);
+
+    debugf("hubicfuse_DBG : flen = full_segments * segment_size + remaining");
+    debugf("hubicfuse_DBG : %lld = %d * %lld + %lld ",flen,full_segments,segment_size,remaining);
 
     // The best we can do here is to get the current time that way tools that
     // use the mtime can at least check if the file was changing after now
@@ -594,7 +571,7 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
     cloudfs_create_directory(manifest);
 
     // reusing manifest
-    snprintf(manifest, MAX_URL_SIZE, "%s_segments/%s/%s/%ld/%ld/",
+    snprintf(manifest, MAX_URL_SIZE, "%s_segments/%s/%s/%lld/%lld/",
         container, object, meta_mtime, flen, segment_size);
 
     char tmp[MAX_URL_SIZE];
@@ -615,14 +592,17 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
     curl_slist_free_all(headers);
 
     curl_free(encoded);
-    return (response >= 200 && response < 300);
+    if (!(response >= 200 && response < 300))
+      debugf("cloudfs_object_read_fp call to send_request_size PUT %s failed with response %d", path, response);
 
+    return (response >= 200 && response < 300);
   }
 
   rewind(fp);
   char *encoded = curl_escape(path, 0);
   int response = send_request("PUT", encoded, fp, NULL, NULL);
   curl_free(encoded);
+
   return (response >= 200 && response < 300);
 }
 
@@ -632,13 +612,16 @@ int cloudfs_object_write_fp(const char *path, FILE *fp)
   char *encoded = curl_escape(path, 0);
   char seg_base[MAX_URL_SIZE] = "";
 
-  long segments;
-  long full_segments;
-  long remaining;
-  long size_of_segments;
+  int segments;
+  int full_segments;
+  off_t remaining;
+  off_t size_of_segments;
 
   if (format_segments(path, seg_base, &segments, &full_segments, &remaining,
         &size_of_segments)) {
+
+	debugf("hubicfuse_DBG : format_segments OK");
+	debugf("hubicfuse_DBG : segments %d (full_segments %d +%d)- remaining %lld - size_of_segments %lld ",segments,full_segments,(remaining>0),remaining,size_of_segments);
 
     rewind(fp);
     fflush(fp);
@@ -652,6 +635,8 @@ int cloudfs_object_write_fp(const char *path, FILE *fp)
     run_segment_threads("GET", segments, full_segments, remaining, fp,
             seg_base, size_of_segments);
     return 1;
+  } else {
+    debugf("hubicfuse_DBG : format_segments KO");
   }
 
   int response = send_request("GET", encoded, fp, NULL, NULL);
@@ -814,7 +799,7 @@ int cloudfs_list_directory(const char *path, dir_entry **dir_list)
     dir_entry *de = (dir_entry *)malloc(sizeof(dir_entry));
     de->name = strdup(public_container);
     struct tm last_modified;
-    strptime("1388434648.01238", "%FT%T", &last_modified);
+    strptime("", "%FT%T", &last_modified);
     de->last_modified = mktime(&last_modified);
     de->content_type = strdup("application/directory");
     if (asprintf(&(de->full_name), "%s/%s", path, de->name) < 0)
@@ -853,10 +838,10 @@ int cloudfs_delete_object(const char *path)
 
   char seg_base[MAX_URL_SIZE] = "";
 
-  long segments;
-  long full_segments;
-  long remaining;
-  long size_of_segments;
+  int segments;
+  int full_segments;
+  off_t remaining;
+  off_t size_of_segments;
 
   if (format_segments(path, seg_base, &segments, &full_segments, &remaining,
         &size_of_segments)) {
@@ -877,7 +862,10 @@ int cloudfs_delete_object(const char *path)
   curl_free(encoded);
   int ret = (response >= 200 && response < 300);
   if (response == 409)
+  {
+	debugf("Error 409 received from server : Conflict");
     ret = -1;
+  }
   return ret;
 }
 
@@ -926,9 +914,20 @@ int cloudfs_create_directory(const char *path)
 
 off_t cloudfs_file_size(int fd)
 {
+  /* replaced by code from https://www.securecoding.cert.org/confluence/display/c/FIO19-C.+Do+not+use+fseek%28%29+and+ftell%28%29+to+compute+the+size+of+a+regular+file
   struct stat buf;
   fstat(fd, &buf);
-  return buf.st_size;
+  return buf.st_size;*/
+	off_t file_size;
+	struct stat stbuf;
+
+	if ((fstat(fd, &stbuf) != 0) || (!S_ISREG(stbuf.st_mode))) {
+	  debugf("Error : Could not get the file size.");
+	  return -1;
+	}
+
+	file_size = stbuf.st_size;
+	return file_size;
 }
 
 void cloudfs_debug(int dbg)
@@ -1041,7 +1040,6 @@ int cloudfs_connect()
   #define HUBIC_OPTIONS_SIZE  2048
 
   long response = -1;
-  char url[HUBIC_OPTIONS_SIZE];
   char payload[HUBIC_OPTIONS_SIZE];
   struct json_object *json_obj;
 
@@ -1109,7 +1107,8 @@ int cloudfs_connect()
   expire_sec = json_object_get_int(o);
   debugf ("HUBIC Access token: %s\n", access_token);
   debugf ("HUBIC Token type  : %s\n", token_type);
-  debugf ("HUBIC Expire in   : %d\n", expire_sec);
+  if (found)
+    debugf ("HUBIC Expire in   : %d\n", expire_sec);
 
   /* Step 4 : request OpenStack storage URL */
 

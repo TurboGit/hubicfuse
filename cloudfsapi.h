@@ -1,8 +1,50 @@
 #ifndef _CLOUDFSAPI_H
 #define _CLOUDFSAPI_H
+#define _GNU_SOURCE
+#define _FILE_OFFSET_BITS  64
+#include <stdio.h>
+#include <assert.h>
+#include <magic.h>
+#include <string.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#ifdef __linux__
+#include <alloca.h>
+#endif
+#include <pthread.h>
+#include <time.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/time.h>
+#include <libxml/tree.h>
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <json.h>
+#include <libxml/xpath.h>
+#include <libxml/xpathInternals.h>
+#include "config.h"
+#include <fuse.h>
+#include <errno.h>
 
 #include <curl/curl.h>
 #include <curl/easy.h>
+
+#define RHEL5_LIBCURL_VERSION 462597
+#define RHEL5_CERTIFICATE_FILE "/etc/pki/tls/certs/ca-bundle.crt"
+
+#define REQUEST_RETRIES 4
+
+#define MAX_FILES 10000
+
+// 64 bit time + nanoseconds
+#define TIME_CHARS 32
+
+// size of buffer for writing to disk look at ioblksize.h in coreutils
+// and try some values on your own system if you want the best performance
+#define DISK_BUFF_SIZE 32768
+
 
 #define BUFFER_INITIAL_SIZE 4096
 #define MAX_HEADER_SIZE 8192
@@ -46,14 +88,14 @@ struct segment_info
 {
     FILE *fp;
     int part;
-    long size;
-    long segment_size;
+    off_t size;
+    off_t segment_size;
     char *seg_base;
     const char *method;
 };
 
-long segment_size;
-long segment_above;
+off_t segment_size;
+off_t segment_above;
 
 char *override_storage_url;
 char *public_container;
@@ -73,6 +115,7 @@ off_t cloudfs_file_size(int fd);
 void cloudfs_debug(int dbg);
 void cloudfs_verify_ssl(int dbg);
 void cloudfs_free_dir_list(dir_entry *dir_list);
+int cloudfs_statfs(const char *path, struct statvfs *stat);
 
 void debugf(char *fmt, ...);
 #endif
