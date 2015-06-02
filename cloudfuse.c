@@ -250,7 +250,7 @@ static int cfs_fgetattr(const char *path, struct stat *stbuf, struct fuse_file_i
   return -ENOENT;
 }
 
-static int cfs_readdir(const char *path, void *buf, fuse_fill_dir_t filldir, long long int offset, struct fuse_file_info *info)
+static int cfs_readdir(const char *path, void *buf, fuse_fill_dir_t filldir, off_t offset, struct fuse_file_info *info)
 {
   dir_entry *de;
   if (!caching_list_directory(path, &de))
@@ -355,6 +355,8 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
         fclose(temp_file);
         return -ENOENT;
       }
+    } else {
+        return -ENOENT;
     }
   }
   else
@@ -383,7 +385,7 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
   return 0;
 }
 
-static int cfs_read(const char *path, char *buf, size_t size, long long int offset, struct fuse_file_info *info)
+static int cfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *info)
 {
   return pread(((openfile *)(uintptr_t)info->fh)->fd, buf, size, offset);
 }
@@ -434,7 +436,7 @@ static int cfs_rmdir(const char *path)
   return -ENOENT;
 }
 
-static int cfs_ftruncate(const char *path, long long int size, struct fuse_file_info *info)
+static int cfs_ftruncate(const char *path, off_t size, struct fuse_file_info *info)
 {
   openfile *of = (openfile *)(uintptr_t)info->fh;
   if (ftruncate(of->fd, size))
@@ -443,7 +445,7 @@ static int cfs_ftruncate(const char *path, long long int size, struct fuse_file_
   update_dir_cache(path, size, 0, 0);
   return 0;
 }
-static int cfs_write(const char *path, const char *buf, size_t length, long long int offset, struct fuse_file_info *info)
+static int cfs_write(const char *path, const char *buf, size_t length, off_t offset, struct fuse_file_info *info)
 {
   update_dir_cache(path, offset + length, 0, 0);
   return pwrite(((openfile *)(uintptr_t)info->fh)->fd, buf, length, offset);
@@ -476,7 +478,7 @@ static int cfs_fsync(const char *path, int idunno, struct fuse_file_info *info)
   return 0;
 }
 
-static int cfs_truncate(const char *path, long long int size)
+static int cfs_truncate(const char *path, off_t size)
 {
   if (cloudfs_object_truncate(path, size))
 	return 0;
@@ -651,20 +653,33 @@ int main(int argc, char **argv)
 
   if (segment_size < MIN_SEGMENT_SIZE)
   {
-	fprintf(stderr,"segment_size parameter is too small (%lld). Defaulting to %s.\n",segment_size,SEGMENT_SIZE);
+	fprintf(stderr,"segment_size parameter is too small (%lld). Defaulting to %s.\n",(long long int)segment_size,SEGMENT_SIZE);
 	segment_size = atoll(SEGMENT_SIZE);
   }
   if (segment_above < MIN_SEGMENT_SIZE+1)
   {
-	fprintf(stderr,"segment_above parameter is too small (%lld). Defaulting to %s.\n",segment_above,SEGMENT_ABOVE);
+	fprintf(stderr,"segment_above parameter is too small (%lld). Defaulting to %s.\n",(long long int)segment_above,SEGMENT_ABOVE);
 	segment_above = atoll(SEGMENT_ABOVE);
   }
 
   if (segment_size > segment_above)
   {
-	fprintf(stderr,"segment_size parameter (%lld) is bigger than segment_above parameter (%lld). Defaulting respectively to %s and %s.\n",segment_size, segment_above,SEGMENT_SIZE,SEGMENT_ABOVE);
+	fprintf(stderr,"segment_size parameter (%lld) is bigger than segment_above parameter (%lld). Defaulting respectively to %s and %s.\n",(long long int)segment_size, (long long int)segment_above,SEGMENT_SIZE,SEGMENT_ABOVE);
 	segment_size = atoll(SEGMENT_SIZE);
 	segment_above = atoll(SEGMENT_ABOVE);
+  }
+
+  if (*temp_dir)
+  {
+	//if not checked, would crash in cfs_open when folder doesn't exist.
+	//Since the disk space requirement can be large, we fail instead of creating the folder ourself.
+    struct stat stbuf;
+	if ((lstat(temp_dir, &stbuf) != 0) || (!S_ISDIR(stbuf.st_mode)))
+	{
+	  fprintf(stderr,"temp_dir (%s) doesn't exist. Exiting.\n",temp_dir);
+	  fprintf(stderr,"Please create this folder in the partition with most space.\n");
+	  return -1;
+	}
   }
 
   if (cloudfuse_debug)
@@ -673,9 +688,9 @@ int main(int argc, char **argv)
     fprintf(stderr,"cache_timeout : %d s\n",cache_timeout);
     fprintf(stderr,"verify_ssl : %s\n",options.verify_ssl);
     fprintf(stderr,"options.segment_size : %s b\n",options.segment_size);
-    fprintf(stderr,"segment_size : %lld b\n",segment_size);
+    fprintf(stderr,"segment_size : %lld b\n",(long long int)segment_size);
     fprintf(stderr,"options.segment_above : %s b\n",options.segment_above);
-    fprintf(stderr,"segment_above : %lld b\n", segment_above);
+    fprintf(stderr,"segment_above : %lld b\n", (long long int)segment_above);
     fprintf(stderr,"storage_url : %s\n",override_storage_url);
     fprintf(stderr,"container : %s\n",public_container);
     fprintf(stderr,"temp_dir : %s\n",temp_dir);

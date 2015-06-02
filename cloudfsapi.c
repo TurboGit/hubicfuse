@@ -429,7 +429,8 @@ int format_segments(const char *path, char * seg_base,  int *segments,
     if (!cloudfs_list_directory(seg_path, &seg_dir))
       return 0;
 
-    long total_size = strtoll(str_size, NULL, 10);
+    //use off_t for large files download under x86
+    off_t total_size = strtoll(str_size, NULL, 10);
     *size_of_segments = strtoll(str_segment, NULL, 10);
 
     *remaining = total_size % *size_of_segments;
@@ -572,7 +573,7 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
 
     // reusing manifest
     snprintf(manifest, MAX_URL_SIZE, "%s_segments/%s/%s/%lld/%lld/",
-        container, object, meta_mtime, flen, segment_size);
+        container, object, meta_mtime, (long long int)flen, (long long int)segment_size);
 
     char tmp[MAX_URL_SIZE];
     strncpy(tmp, seg_base, MAX_URL_SIZE);
