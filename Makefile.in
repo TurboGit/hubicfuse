@@ -12,7 +12,7 @@ exec_prefix = @exec_prefix@
 bindir = $(DESTDIR)$(exec_prefix)/bin
 
 SOURCES=cloudfsapi.c cloudfuse.c
-HEADERS=cloudfsapi.h
+HEADERS=cloudfsapi.h cloudfuse.h
 
 all: hubicfuse
 

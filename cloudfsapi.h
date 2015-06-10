@@ -1,9 +1,7 @@
 #ifndef _CLOUDFSAPI_H
 #define _CLOUDFSAPI_H
 #define _GNU_SOURCE
-#define _FILE_OFFSET_BITS  64
 #include <stdio.h>
-#include <assert.h>
 #include <magic.h>
 #include <string.h>
 #include <stdarg.h>
@@ -92,6 +90,7 @@ struct segment_info
     off_t segment_size;
     char *seg_base;
     const char *method;
+    int success;
 };
 
 off_t segment_size;
@@ -116,6 +115,7 @@ void cloudfs_debug(int dbg);
 void cloudfs_verify_ssl(int dbg);
 void cloudfs_free_dir_list(dir_entry *dir_list);
 int cloudfs_statfs(const char *path, struct statvfs *stat);
+int run_segment_threads(const char *method, int segments, int full_segments, off_t remaining, FILE *fp, char *seg_base, off_t size_of_segments);
 
 void debugf(char *fmt, ...);
 #endif

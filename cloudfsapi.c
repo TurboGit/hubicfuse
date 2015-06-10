@@ -3,6 +3,7 @@
 static char storage_url[MAX_URL_SIZE];
 static char storage_token[MAX_HEADER_SIZE];
 static pthread_mutex_t pool_mut;
+static pthread_mutex_t debugger_mut;
 static CURL *curl_pool[1024];
 static int curl_pool_count = 0;
 static int debug = 0;
@@ -281,28 +282,44 @@ void *upload_segment(void *seginfo)
   char seg_path[MAX_URL_SIZE];
   struct segment_info *info;
   info = (struct segment_info *)seginfo;
+  info->success = 0;
 
-  fseek(info->fp, info->part * info->segment_size, SEEK_SET);
+  off_t fseek_value = ((off_t)(info->part) * (off_t)(info->segment_size));
+  int fseeko_rtn;
+  fseeko_rtn = fseeko(info->fp, fseek_value, SEEK_SET);
+  if (fseeko_rtn)
+  {
+    int errsv = errno;
+    debugf("hubicfuse_DBG : couldn't fseek to %lld : %s (%d)\n",fseek_value,strerror(errsv),errsv);
+  }
   setvbuf(info->fp, NULL, _IOFBF, DISK_BUFF_SIZE);
 
   snprintf(seg_path, MAX_URL_SIZE, "%s%08i", info->seg_base, info->part);
-  debugf("hubicfuse_DBG : segment upload : %s\n",seg_path);
-  char *encoded = curl_escape(seg_path, 0);
 
+  debugf("hubicfuse_DBG : segment %s : %s\n",strcasecmp(info->method, "PUT")?"download":"upload",seg_path);
+  debugf("hubicfuse_DBG : part %d - size : %zu\n",info->part,info->size);
+  debugf("hubicfuse_DBG : fseek param %lld\n",fseek_value);
+
+  char *encoded = curl_escape(seg_path, 0);
   int response = send_request_size(info->method, encoded, info, NULL, NULL,
       info->size, 1);
 
   if (!(response >= 200 && response < 300))
+  {
     debugf("hubicfuse_DBG : upload_segment call to send_request_size %s failed with response %d", seg_path,response);
-
+  }
+  else
+  {
+    debugf("hubicfuse_DBG : upload_segment call to send_request_size %s ended with response %d", seg_path,response);
+    info->success = 1;
+  }
   curl_free(encoded);
   fclose(info->fp);
   pthread_exit(NULL);
 }
 
 // segment_size is the globabl config variable and size_of_segment is local
-//TODO: return whether the upload/download failed or not
-void run_segment_threads(const char *method, int segments, int full_segments, off_t remaining,
+int run_segment_threads(const char *method, int segments, int full_segments, off_t remaining,
         FILE *fp, char *seg_base, off_t size_of_segments)
 {
     char file_path[PATH_MAX] = "";
@@ -310,6 +327,9 @@ void run_segment_threads(const char *method, int segments, int full_segments, of
             malloc(segments * sizeof(struct segment_info));
 
     pthread_t *threads = (pthread_t *)malloc(segments * sizeof(pthread_t));
+    int i;
+    int allThreadsSucceeded = 0;
+    int rtn = 0;
 #ifdef __linux__
     snprintf(file_path, PATH_MAX, "/proc/self/fd/%d", fileno(fp));
 #else
@@ -317,8 +337,8 @@ void run_segment_threads(const char *method, int segments, int full_segments, of
     if (fcntl(fileno(fp), F_GETPATH, file_path) == -1)
       debugf("couldn't get the path name");
 #endif
-	debugf("hubicfuse_DBG : running %d threads",segments);
-    int i;
+    debugf("hubicfuse_DBG : running %d threads",segments);
+
     for (i = 0; i < segments; i++) {
       info[i].method = method;
       info[i].fp = fopen(file_path, method[0] == 'G' ? "r+" : "r");
@@ -331,9 +351,19 @@ void run_segment_threads(const char *method, int segments, int full_segments, of
 
     for (i = 0; i < segments; i++) {
       pthread_join(threads[i], NULL);
+      //fclose(info[i].fp);
+      allThreadsSucceeded += info[i].success;
     }
+    if (allThreadsSucceeded == segments) {
+      debugf("hubicfuse_DBG : all %d threads succeeded",segments);
+      rtn = 1;
+    } else {
+      debugf("hubicfuse_DBG : %d/%d threads failed",(segments-allThreadsSucceeded),segments);
+    }
+
     free(info);
     free(threads);
+    return rtn;
 }
 
 void split_path(const char *path, char *seg_base, char *container,
@@ -446,7 +476,6 @@ int format_segments(const char *path, char * seg_base,  int *segments,
 
     return 1;
   }
-
   else {
     return 0;
   }
@@ -579,8 +608,12 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
     strncpy(tmp, seg_base, MAX_URL_SIZE);
     snprintf(seg_base, MAX_URL_SIZE, "%s/%s", tmp, manifest);
 
-    run_segment_threads("PUT", segments, full_segments, remaining, fp,
-            seg_base, segment_size);
+    if (!run_segment_threads("PUT", segments, full_segments, remaining, fp,
+            seg_base, segment_size))
+    {
+      debugf("hubicfuse_DBG : Failed to upload all segments.");
+      return 0;
+    }
 
     char *encoded = curl_escape(path, 0);
     curl_slist *headers = NULL;
@@ -621,8 +654,9 @@ int cloudfs_object_write_fp(const char *path, FILE *fp)
   if (format_segments(path, seg_base, &segments, &full_segments, &remaining,
         &size_of_segments)) {
 
-	debugf("hubicfuse_DBG : format_segments OK");
-	debugf("hubicfuse_DBG : segments %d (full_segments %d +%d)- remaining %lld - size_of_segments %lld ",segments,full_segments,(remaining>0),remaining,size_of_segments);
+    debugf("hubicfuse_DBG : format_segments OK");
+    debugf("hubicfuse_DBG : %d segments : full_segments %d +%d",segments,full_segments,(remaining>0));
+    debugf("hubicfuse_DBG : total size : %d x %lld + %lld = %lld ",full_segments,size_of_segments,(remaining>0)?remaining:0,(full_segments*size_of_segments+((remaining>0)?remaining:0)));
 
     rewind(fp);
     fflush(fp);
@@ -633,20 +667,22 @@ int cloudfs_object_write_fp(const char *path, FILE *fp)
       abort();
     }
 
-    run_segment_threads("GET", segments, full_segments, remaining, fp,
-            seg_base, size_of_segments);
+    if (!run_segment_threads("GET", segments, full_segments, remaining, fp,
+            seg_base, size_of_segments))
+    {
+      debugf("hubicfuse_DBG : Failed to download all segments.");
+      return 0;
+    }
     return 1;
   } else {
-    debugf("hubicfuse_DBG : format_segments KO");
+    int response = send_request("GET", encoded, fp, NULL, NULL);
+    curl_free(encoded);
+    fflush(fp);
+    if ((response >= 200 && response < 300) || ftruncate(fileno(fp), 0))
+      return 1;
+    rewind(fp);
+    return 0;
   }
-
-  int response = send_request("GET", encoded, fp, NULL, NULL);
-  curl_free(encoded);
-  fflush(fp);
-  if ((response >= 200 && response < 300) || ftruncate(fileno(fp), 0))
-    return 1;
-  rewind(fp);
-  return 0;
 }
 
 int cloudfs_object_truncate(const char *path, off_t size)
@@ -864,7 +900,7 @@ int cloudfs_delete_object(const char *path)
   int ret = (response >= 200 && response < 300);
   if (response == 409)
   {
-	debugf("Error 409 received from server : Conflict");
+    debugf("Error 409 received from server : Conflict");
     ret = -1;
   }
   return ret;
@@ -919,16 +955,16 @@ off_t cloudfs_file_size(int fd)
   struct stat buf;
   fstat(fd, &buf);
   return buf.st_size;*/
-	off_t file_size;
-	struct stat stbuf;
+  off_t file_size;
+  struct stat stbuf;
 
-	if ((fstat(fd, &stbuf) != 0) || (!S_ISREG(stbuf.st_mode))) {
-	  debugf("Error : Could not get the file size.");
-	  return -1;
-	}
+  if ((fstat(fd, &stbuf) != 0) || (!S_ISREG(stbuf.st_mode))) {
+    debugf("Error : Could not get the file size.");
+    return -1;
+  }
 
-	file_size = stbuf.st_size;
-	return file_size;
+  file_size = stbuf.st_size;
+  return file_size;
 }
 
 void cloudfs_debug(int dbg)
@@ -955,58 +991,58 @@ void cloudfs_set_credentials(char *client_id, char *client_secret, char *refresh
 }
 
 struct htmlString {
-	char *text;
-	size_t size;
+  char *text;
+  size_t size;
 };
 
 static size_t writefunc_string(void *contents, size_t size, size_t nmemb, void *data)
 {
-	struct htmlString *mem = (struct htmlString *) data;
-	size_t realsize = size * nmemb;
-	mem->text = realloc(mem->text, mem->size + realsize + 1);
-	if (mem->text == NULL) { /* out of memory! */
-		perror(__FILE__);
-		exit(EXIT_FAILURE);
-	}
+  struct htmlString *mem = (struct htmlString *) data;
+  size_t realsize = size * nmemb;
+  mem->text = realloc(mem->text, mem->size + realsize + 1);
+  if (mem->text == NULL) { /* out of memory! */
+    perror(__FILE__);
+    exit(EXIT_FAILURE);
+  }
 
-	memcpy(&(mem->text[mem->size]), contents, realsize);
-	mem->size += realsize;
-	return realsize;
+  memcpy(&(mem->text[mem->size]), contents, realsize);
+  mem->size += realsize;
+  return realsize;
 }
 
 char* htmlStringGet(CURL *curl)
 {
-	struct htmlString chunk;
-	chunk.text = malloc(sizeof(char));
-	chunk.size = 0;
+  struct htmlString chunk;
+  chunk.text = malloc(sizeof(char));
+  chunk.size = 0;
 
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
-	do {
-		curl_easy_perform(curl);
-	} while (chunk.size == 0);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
+  do {
+    curl_easy_perform(curl);
+  } while (chunk.size == 0);
 
-	chunk.text[chunk.size] = '\0';
-	return chunk.text;
+  chunk.text[chunk.size] = '\0';
+  return chunk.text;
 }
 
 /* thanks to http://devenix.wordpress.com */
 char *unbase64(unsigned char *input, int length)
 {
-	BIO *b64, *bmem;
+  BIO *b64, *bmem;
 
-	char *buffer = (char *)malloc(length);
-	memset(buffer, 0, length);
+  char *buffer = (char *)malloc(length);
+  memset(buffer, 0, length);
 
-	b64 = BIO_new(BIO_f_base64());
-	bmem = BIO_new_mem_buf(input, length);
-	bmem = BIO_push(b64, bmem);
-	BIO_set_flags(bmem, BIO_FLAGS_BASE64_NO_NL);
+  b64 = BIO_new(BIO_f_base64());
+  bmem = BIO_new_mem_buf(input, length);
+  bmem = BIO_push(b64, bmem);
+  BIO_set_flags(bmem, BIO_FLAGS_BASE64_NO_NL);
 
-	BIO_read(bmem, buffer, length);
+  BIO_read(bmem, buffer, length);
 
-	BIO_free_all(bmem);
+  BIO_free_all(bmem);
 
-	return buffer;
+  return buffer;
 }
 
 int safe_json_string(json_object *jobj, char *buffer, char *name)
@@ -1158,10 +1194,26 @@ void debugf(char *fmt, ...)
   if (debug)
   {
     va_list args;
+    time_t ltime;
+    struct tm *Tm;
+    struct timeval detail_time;
+
+    pthread_mutex_lock(&debugger_mut);
+    ltime=time(NULL);
+    Tm=localtime(&ltime);
+    gettimeofday(&detail_time,NULL);
+
     va_start(args, fmt);
     fputs("!!! ", stderr);
+    fprintf(stderr, "%02d:%02d:%02d.%06ld - ",
+        Tm->tm_hour,
+        Tm->tm_min,
+        Tm->tm_sec,
+        detail_time.tv_usec);
     vfprintf(stderr, fmt, args);
     va_end(args);
     putc('\n', stderr);
+    fflush(stderr);
+    pthread_mutex_unlock(&debugger_mut);
   }
 }

@@ -382,6 +382,7 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
   of->flags = info->flags;
   info->fh = (uintptr_t)of;
   info->direct_io = 1;
+  debugf("hubicfuse_DBG : cfs_open %s : success",path);
   return 0;
 }
 
@@ -456,7 +457,7 @@ static int cfs_unlink(const char *path)
   int success = cloudfs_delete_object(path);
   if (success == -1)
   {
-	fprintf(stderr,"hubicfuse_DBG : Error unlinking %s (-EACCES).\n",path);
+    fprintf(stderr,"hubicfuse_DBG : Error unlinking %s (-EACCES).\n",path);
     return -EACCES;
   }
   if (success)
@@ -481,7 +482,7 @@ static int cfs_fsync(const char *path, int idunno, struct fuse_file_info *info)
 static int cfs_truncate(const char *path, off_t size)
 {
   if (cloudfs_object_truncate(path, size))
-	return 0;
+    return 0;
   fprintf(stderr,"hubicfuse_DBG : Error truncating %s.\n",path);
   return -EIO;
 }
@@ -514,12 +515,12 @@ static int cfs_rename(const char *src, const char *dst)
     return -EISDIR;
   if (cloudfs_copy_object(src, dst))
   {
-	fprintf(stderr,"hubicfuse_DBG : Copied %s to %s successfully.\n",src,dst);
+    fprintf(stderr,"hubicfuse_DBG : Copied %s to %s successfully.\n",src,dst);
     /* FIXME this isn't quite right as doesn't preserve last modified */
     update_dir_cache(dst, src_de->size, 0, 0);
     int rtnCopyAndUnlink = cfs_unlink(src);
     if (rtnCopyAndUnlink)
-		fprintf(stderr,"hubicfuse_DBG : Error unlinking %s after successful copy to %s.\n",src,dst);
+      fprintf(stderr,"hubicfuse_DBG : Error unlinking %s after successful copy to %s.\n",src,dst);
     return rtnCopyAndUnlink;
   }
   fprintf(stderr,"hubicfuse_DBG : Error copying %s to %s.\n",src,dst);
@@ -611,21 +612,21 @@ int main(int argc, char **argv)
   char settings_filename[MAX_PATH_SIZE] = "";
   FILE *settings;
   struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
-
+  
   snprintf(settings_filename, sizeof(settings_filename), "%s/.hubicfuse", get_home_dir());
   if ((settings = fopen(settings_filename, "r")))
   {
     char line[OPTION_SIZE];
     while (fgets(line, sizeof(line), settings))
-	parse_option(NULL, line, -1, &args);
+      parse_option(NULL, line, -1, &args);
     fclose(settings);
   }
 
   fuse_opt_parse(&args, &options, NULL, parse_option);
   cloudfs_debug(cloudfuse_debug);
-  cache_timeout = atoi(options.cache_timeout);
-  segment_size = atoll(options.segment_size);
-  segment_above = atoll(options.segment_above);
+  cache_timeout = strtoumax(options.cache_timeout,NULL,10);
+  segment_size = strtoull(options.segment_size,NULL,10);
+  segment_above = strtoull(options.segment_above,NULL,10);
   // this is ok since main is on the stack during the entire execution
   override_storage_url = options.storage_url;
   public_container = options.container;
@@ -653,33 +654,33 @@ int main(int argc, char **argv)
 
   if (segment_size < MIN_SEGMENT_SIZE)
   {
-	fprintf(stderr,"segment_size parameter is too small (%lld). Defaulting to %s.\n",(long long int)segment_size,SEGMENT_SIZE);
-	segment_size = atoll(SEGMENT_SIZE);
+    fprintf(stderr,"segment_size parameter is too small (%lld). Defaulting to %s.\n",(long long int)segment_size,SEGMENT_SIZE);
+    segment_size = atoll(SEGMENT_SIZE);
   }
   if (segment_above < MIN_SEGMENT_SIZE+1)
   {
-	fprintf(stderr,"segment_above parameter is too small (%lld). Defaulting to %s.\n",(long long int)segment_above,SEGMENT_ABOVE);
-	segment_above = atoll(SEGMENT_ABOVE);
+    fprintf(stderr,"segment_above parameter is too small (%lld). Defaulting to %s.\n",(long long int)segment_above,SEGMENT_ABOVE);
+    segment_above = atoll(SEGMENT_ABOVE);
   }
 
   if (segment_size > segment_above)
   {
-	fprintf(stderr,"segment_size parameter (%lld) is bigger than segment_above parameter (%lld). Defaulting respectively to %s and %s.\n",(long long int)segment_size, (long long int)segment_above,SEGMENT_SIZE,SEGMENT_ABOVE);
-	segment_size = atoll(SEGMENT_SIZE);
-	segment_above = atoll(SEGMENT_ABOVE);
+    fprintf(stderr,"segment_size parameter (%lld) is bigger than segment_above parameter (%lld). Defaulting respectively to %s and %s.\n",(long long int)segment_size, (long long int)segment_above,SEGMENT_SIZE,SEGMENT_ABOVE);
+    segment_size = atoll(SEGMENT_SIZE);
+    segment_above = atoll(SEGMENT_ABOVE);
   }
 
   if (*temp_dir)
   {
-	//if not checked, would crash in cfs_open when folder doesn't exist.
-	//Since the disk space requirement can be large, we fail instead of creating the folder ourself.
+    //if not checked, would crash in cfs_open when folder doesn't exist.
+    //Since the disk space requirement can be large, we fail instead of creating the folder ourself.
     struct stat stbuf;
-	if ((lstat(temp_dir, &stbuf) != 0) || (!S_ISDIR(stbuf.st_mode)))
-	{
-	  fprintf(stderr,"temp_dir (%s) doesn't exist. Exiting.\n",temp_dir);
-	  fprintf(stderr,"Please create this folder in the partition with most space.\n");
-	  return -1;
-	}
+    if ((lstat(temp_dir, &stbuf) != 0) || (!S_ISDIR(stbuf.st_mode)))
+    {
+      fprintf(stderr,"temp_dir (%s) doesn't exist. Exiting.\n",temp_dir);
+      fprintf(stderr,"Please create this folder in the partition with most space.\n");
+      return -1;
+    }
   }
 
   if (cloudfuse_debug)
@@ -687,10 +688,8 @@ int main(int argc, char **argv)
     fprintf(stderr,"Configuration values\n");
     fprintf(stderr,"cache_timeout : %d s\n",cache_timeout);
     fprintf(stderr,"verify_ssl : %s\n",options.verify_ssl);
-    fprintf(stderr,"options.segment_size : %s b\n",options.segment_size);
-    fprintf(stderr,"segment_size : %lld b\n",(long long int)segment_size);
-    fprintf(stderr,"options.segment_above : %s b\n",options.segment_above);
-    fprintf(stderr,"segment_above : %lld b\n", (long long int)segment_above);
+    fprintf(stderr,"segment_size : %lld b\n",segment_size);
+    fprintf(stderr,"segment_above : %lld b\n",segment_above);
     fprintf(stderr,"storage_url : %s\n",override_storage_url);
     fprintf(stderr,"container : %s\n",public_container);
     fprintf(stderr,"temp_dir : %s\n",temp_dir);
