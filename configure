@@ -3609,8 +3609,8 @@ fi
 	# Put the nasty error message in config.log where it belongs
 	echo "$JSON_PKG_ERRORS" >&5
 
-	  JSON_CFLAGS C compiler flags for JSON, overriding pkg-config
-  JSON_LIBS   linker flags for JSON, overriding pkg-config
+	  #JSON_CFLAGS C compiler flags for JSON, overriding pkg-config
+	  #JSON_LIBS   linker flags for JSON, overriding pkg-config
 
 pkg_failed=no
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for JSON" >&5
