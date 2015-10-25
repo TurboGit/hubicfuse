@@ -342,7 +342,7 @@ void run_segment_threads(const char *method, int segments, int full_segments, in
       fprintf(stderr, "couldn't get the path name\n");
 #endif
 
-    int i;
+    int i, ret;
     for (i = 0; i < segments; i++) {
       info[i].method = method;
       info[i].fp = fopen(file_path, method[0] == 'G' ? "r+" : "r");
@@ -354,7 +354,8 @@ void run_segment_threads(const char *method, int segments, int full_segments, in
     }
 
     for (i = 0; i < segments; i++) {
-      pthread_join(threads[i], NULL);
+      if ((ret = pthread_join(threads[i], NULL)) != 0)
+        fprintf(stderr, "error waiting for thread %d, status = %d\n", i, ret);
     }
     free(info);
     free(threads);
