@@ -303,9 +303,8 @@ static int send_request(char *method, const char *path, FILE *fp,
 
 void *upload_segment(void *seginfo)
 {
-  char seg_path[MAX_URL_SIZE];
-  struct segment_info *info;
-  info = (struct segment_info *)seginfo;
+  struct segment_info *info = (struct segment_info *)seginfo;
+  char seg_path[MAX_URL_SIZE] = { 0 };
 
   fseek(info->fp, info->part * info->segment_size, SEEK_SET);
   setvbuf(info->fp, NULL, _IOFBF, DISK_BUFF_SIZE);
@@ -330,7 +329,7 @@ void *upload_segment(void *seginfo)
 void run_segment_threads(const char *method, int segments, int full_segments, int remaining,
         FILE *fp, char *seg_base, int size_of_segments)
 {
-    char file_path[PATH_MAX] = "";
+    char file_path[PATH_MAX] = { 0 };
     struct segment_info *info = (struct segment_info *)
             malloc(segments * sizeof(struct segment_info));
 
