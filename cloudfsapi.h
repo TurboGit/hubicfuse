@@ -3,6 +3,7 @@
 
 #include <curl/curl.h>
 #include <curl/easy.h>
+#include <fuse.h>
 
 #define BUFFER_INITIAL_SIZE 4096
 #define MAX_HEADER_SIZE 8192
@@ -73,6 +74,7 @@ off_t cloudfs_file_size(int fd);
 void cloudfs_debug(int dbg);
 void cloudfs_verify_ssl(int dbg);
 void cloudfs_free_dir_list(dir_entry *dir_list);
+int cloudfs_statfs(const char *path, struct statvfs *stat);
 
 void debugf(char *fmt, ...);
 #endif
