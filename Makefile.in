@@ -11,8 +11,8 @@ prefix = @prefix@
 exec_prefix = @exec_prefix@
 bindir = $(DESTDIR)$(exec_prefix)/bin
 
-SOURCES=cloudfsapi.c cloudfuse.c
-HEADERS=cloudfsapi.h
+SOURCES=cloudfsapi.c cloudfuse.c commonfs.c
+HEADERS=cloudfsapi.h commonfs.h
 
 all: hubicfuse
 
@@ -38,6 +38,9 @@ distclean: clean
 mostlyclean: clean
 
 maintainer-clean: clean
+
+debug: CFLAGS += -g
+debug: hubicfuse
 
 config.h.in: stamp-h.in
 stamp-h.in: configure.in
