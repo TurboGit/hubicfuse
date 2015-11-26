@@ -39,6 +39,12 @@ USE:
         client_secret=[Hubic client secret for the registered application]
         refresh_token=[A refresh token you got from the script]
 
+    Optional variables:
+        get_extended_metadata=[true/false, force download of additional file metadata like atime and mtime on first directory list]
+        curl_verbose=[true/false, enable verbose output for curl HTTP requests]
+        cache_statfs_timeout=[value in seconds, large timeout increases the file access speed]
+        debug_level=[0 default, 1 extremely verbose for debugging purposes]
+
     client_id, client_secret can be retrieved from the hubic
     web interface: https://hubic.com/home/browser/developers/
 
@@ -83,7 +89,19 @@ BUGS/SHORTCOMINGS:
       "application/directory".
     * Cloud Files limits container and object listings to 10,000 items.
       cloudfuse won't list more than that many files in a single directory.
+	* File copy progress when uploading does not work, progress is shown when file 
+	  is copied in local cache, then upload operation happens at 100%
 
+Recent additions/fixes (from https://github.com/dan-cristian):
+	* Support for atime, mtime, chmod, chown.
+	* Large files (segmented) have correct size listed (was 0 before).
+	* Multiple speed improvements, minimised the number of HTTP calls and added more caching features.
+	* Fixed many segmentation faults.
+	* Cached files are deleted on cache expiration when using a custom temp folder.
+	* Files copied have attributes preserved.
+	* Working well with rsync due to mtime support and proper copy operations.
+	* Support for http progress (track upload / download speed etc.)
+	* Major code refactoring, code documentation, extensive debugging, additional config options
 
 AWESOME CONTRIBUTORS:
 
