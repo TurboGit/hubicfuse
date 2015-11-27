@@ -235,7 +235,15 @@ static int cfs_create(const char *path, mode_t mode, struct fuse_file_info *info
 		debugf(DBG_LEVEL_EXT, KCYN"cfs_create: mtime=[%s]", time_str);
 		get_timespec_as_str(&(de->ctime), time_str, sizeof(time_str));
 		debugf(DBG_LEVEL_EXT, KCYN"cfs_create: ctime=[%s]", time_str);
+
+    //set chmod & chown
+    de->chmod = mode;
+    de->uid = geteuid();
+    de->gid = getegid();
 	}
+  else {
+    debugf(DBG_LEVEL_EXT, KBLU "cfs_create(%s) "KYEL"dir-entry not found", path);
+  }
 	debugf(DBG_LEVEL_NORM, KBLU "exit 2: cfs_create(%s) result=%d:%s", path, errsv, strerror(errsv));
   return 0;
 }
@@ -321,7 +329,6 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
     }
   }
 
-  
   update_dir_cache(path, (de ? de->size : 0), 0, 0);
   openfile *of = (openfile *)malloc(sizeof(openfile));
   of->fd = dup(fileno(temp_file));
@@ -486,6 +493,8 @@ static int cfs_chown(const char *path, uid_t uid, gid_t gid)
       debugf(DBG_LEVEL_NORM, "cfs_chown(%s): change from uid:gid %d:%d to %d:%d", path, de->uid, de->gid, uid, gid);
       de->uid = uid;
       de->gid = gid;
+      //todo: issue a PUT request to update metadata (empty request just to update headers?)
+      int response = cloudfs_update_meta(de);
     }
   }
   return 0;
@@ -499,6 +508,8 @@ static int cfs_chmod(const char *path, mode_t mode)
     if (de->chmod != mode) {
       debugf(DBG_LEVEL_NORM, "cfs_chmod(%s): change mode from %d to %d", path, de->chmod, mode);
       de->chmod = mode;
+      //todo: issue a PUT request to update metadata (empty request just to update headers?)
+      int response = cloudfs_update_meta(de);
     }
   }
   return 0;
