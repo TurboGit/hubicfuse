@@ -44,6 +44,8 @@ USE:
         curl_verbose=[true/false, enable verbose output for curl HTTP requests]
         cache_statfs_timeout=[value in seconds, large timeout increases the file access speed]
         debug_level=[0 default, 1 extremely verbose for debugging purposes]
+		enable_chmod=[true/false, false by default, still experimental feature]
+		enable_chown=[true/false, false by default, still experimental feature]
 
     client_id, client_secret can be retrieved from the hubic
     web interface: https://hubic.com/home/browser/developers/

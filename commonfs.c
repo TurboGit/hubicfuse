@@ -19,6 +19,8 @@
 #include <pwd.h>
 #include <fuse.h>
 #include <limits.h>
+#include <curl/curl.h>
+#include <curl/easy.h>
 #include "commonfs.h"
 #include "config.h"
 
@@ -553,6 +555,13 @@ dir_entry *check_path_info(const char *path)
 			debugf(DBG_LEVEL_EXT, "exit 1: check_path_info(%s) "KGRN"[CACHE-HIT]", path);
 			return tmp;
 		}
+
+    /*char *encoded = curl_escape(tmp->full_name, 0);
+    debugf(DBG_LEVEL_EXT, "check_path_info(%s) check[%s]=[%s]", path, encoded, path);
+    if (!strcmp(encoded, path)) {
+      debugf(DBG_LEVEL_EXT, "exit 1: check_path_info(%s) "KGRN"[CACHE-HIT-"KRED"ENCODED]", path);
+      return tmp;
+    }*/
 	}
 	if (!strcmp(path, "/")) {
 		debugf(DBG_LEVEL_EXT, "exit 2: check_path_info(%s) "KYEL "ignoring root [CACHE-MISS]", path);
