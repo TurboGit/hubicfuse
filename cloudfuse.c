@@ -381,7 +381,7 @@ static int cfs_flush(const char *path, struct fuse_file_info *info)
         char md5_file_hash_str[MD5_DIGEST_LENGTH + 1] = "\0";
         file_md5(fp, md5_file_hash_str);
         dir_entry *de = check_path_info(path);
-        if (de && !strcasecmp(md5_file_hash_str, de->md5sum)) {
+        if (de && (!strcasecmp(md5_file_hash_str, de->md5sum))) {
           //file content is identical, no need to upload entire file, just update metadata
           debugf(DBG_LEVEL_NORM, KBLU "cfs_flush(%s): skip full upload as content did not change", path);
           cloudfs_update_meta(de);
