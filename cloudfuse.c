@@ -191,9 +191,9 @@ static int cfs_create(const char *path, mode_t mode, struct fuse_file_info *info
   debugf(DBG_LEVEL_NORM, KBLU "cfs_create(%s)", path);
   FILE *temp_file;
 	int errsv;
+  char file_path_safe[NAME_MAX] = "";
 
-  if (*temp_dir) {
-    char file_path_safe[NAME_MAX] = "";
+  if (*temp_dir) {  
 		get_safe_cache_file_path(path, file_path_safe, temp_dir);
     temp_file = fopen(file_path_safe, "w+b");
 		errsv = errno;
@@ -246,7 +246,7 @@ static int cfs_create(const char *path, mode_t mode, struct fuse_file_info *info
   else {
     debugf(DBG_LEVEL_EXT, KBLU "cfs_create(%s) "KYEL"dir-entry not found", path);
   }
-	debugf(DBG_LEVEL_NORM, KBLU "exit 2: cfs_create(%s) result=%d:%s", path, errsv, strerror(errsv));
+	debugf(DBG_LEVEL_NORM, KBLU "exit 2: cfs_create(%s)=(%s) result=%d:%s", path, file_path_safe, errsv, strerror(errsv));
   return 0;
 }
 
@@ -458,7 +458,7 @@ static int cfs_write(const char *path, const char *buf, size_t length, off_t off
     debugf(DBG_LEVEL_EXTALL, KBLU "exit 0: cfs_write(%s) result=%d:%s", path, errsv, strerror(errsv));
   }
   else {
-    debugf(DBG_LEVEL_NORM, KBLU "exit 1: cfs_write(%s) "KRED"result=%d:%s", path, errsv, strerror(errsv));
+    debugf(DBG_LEVEL_EXTALL, KBLU "exit 1: cfs_write(%s) "KRED"result=%d:%s", path, errsv, strerror(errsv));
   }
 	return result;
 }

@@ -42,6 +42,7 @@ USE:
     Optional variables:
         get_extended_metadata=[true/false, force download of additional file metadata like atime and mtime on first directory list]
         curl_verbose=[true/false, enable verbose output for curl HTTP requests]
+		curl_progress_state=[true/false, enable verbose progress output for curl HTTP requests. Used for debugging.]
         cache_statfs_timeout=[value in seconds, large timeout increases the file access speed]
         debug_level=[0 default, 1 extremely verbose for debugging purposes]
 		enable_chmod=[true/false, false by default, still experimental feature]
@@ -102,7 +103,8 @@ Recent additions/fixes (from https://github.com/dan-cristian):
 	* Cached files are deleted on cache expiration when using a custom temp folder.
 	* Files copied have attributes preserved.
 	* Working well with rsync due to mtime support and proper copy operations.
-	* Support for http progress (track upload / download speed etc.)
+	* Debugging support for http progress (track upload / download speed etc.)
+	* Reduced traffic, skips file uploads to cloud if content does not change (using md5sum compare)
 	* Major code refactoring, code documentation, extensive debugging, additional config options
 
 AWESOME CONTRIBUTORS:
