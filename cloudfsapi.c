@@ -178,20 +178,20 @@ static void header_set_time_from_str(char *time_str, struct timespec *time_entry
   sscanf(time_str, "%[^.].%[^\n]", sec_value, nsec_value);
   sec = strtoll(sec_value, NULL, 10);//to allow for larger numbers
   nsec = atol(nsec_value);
-  debugf(DBG_LEVEL_EXT, "Received time=%s.%s / %li.%li, existing=%li.%li", 
+  debugf(DBG_LEVEL_EXTALL, "Received time=%s.%s / %li.%li, existing=%li.%li", 
 		sec_value, nsec_value, sec, nsec, time_entry->tv_sec, time_entry->tv_nsec);
   if (sec != time_entry->tv_sec || nsec != time_entry->tv_nsec){
-    debugf(DBG_LEVEL_EXT, "Time changed, setting new time=%li.%li, existing was=%li.%li", 
+    debugf(DBG_LEVEL_EXTALL, "Time changed, setting new time=%li.%li, existing was=%li.%li", 
 			sec, nsec, time_entry->tv_sec, time_entry->tv_nsec);
 		time_entry->tv_sec = sec;
 		time_entry->tv_nsec = nsec;
 
 		char time_str_local[TIME_CHARS] = "";
 		get_time_as_string((time_t)sec, nsec, time_str_local, sizeof(time_str_local));
-		debugf(DBG_LEVEL_EXT, "header_set_time_from_str received time=[%s]", time_str_local);
+		debugf(DBG_LEVEL_EXTALL, "header_set_time_from_str received time=[%s]", time_str_local);
 
 		get_timespec_as_str(time_entry, time_str_local, sizeof(time_str_local));
-		debugf(DBG_LEVEL_EXT, "header_set_time_from_str set time=[%s]", time_str_local);
+		debugf(DBG_LEVEL_EXTALL, "header_set_time_from_str set time=[%s]", time_str_local);
   }
 }
 
@@ -370,7 +370,7 @@ static int send_request_size(const char *method, const char *path, void *fp,
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HEADER, 0);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1);
-    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, option_curl_progress_state);//0=to enable progress
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, option_curl_progress_state ? 0 : 1);//reversed logic, 0=to enable progress
     curl_easy_setopt(curl, CURLOPT_USERAGENT, USER_AGENT);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_ssl ? 1 : 0);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, verify_ssl);
@@ -392,18 +392,18 @@ static int send_request_size(const char *method, const char *path, void *fp,
     else {
       // add headers to save utimens attribs only on upload
       if (!strcasecmp(method, "PUT") || !strcasecmp(method, "MKDIR")) {
-        debugf(DBG_LEVEL_EXT, "send_request_size: Saving utimens for file %s", orig_path);
+        debugf(DBG_LEVEL_EXTALL, "send_request_size: Saving utimens for file %s", orig_path);
 				//debugf(DBG_LEVEL_NORM, "File found in cache, path=%s", de->full_name);
-				debugf(DBG_LEVEL_EXT, "send_request_size: Cached utime for path=%s ctime=%li.%li mtime=%li.%li atime=%li.%li", orig_path,
+				debugf(DBG_LEVEL_EXTALL, "send_request_size: Cached utime for path=%s ctime=%li.%li mtime=%li.%li atime=%li.%li", orig_path,
 					de->ctime.tv_sec, de->ctime.tv_nsec, de->mtime.tv_sec, de->mtime.tv_nsec, de->atime.tv_sec, de->atime.tv_nsec);
 
 				char atime_str_nice[TIME_CHARS] = "", mtime_str_nice[TIME_CHARS] = "", ctime_str_nice[TIME_CHARS] = "";
 				get_timespec_as_str(&(de->atime), atime_str_nice, sizeof(atime_str_nice));
-				debugf(DBG_LEVEL_EXT, KCYN"send_request_size: atime=[%s]", atime_str_nice);
+				debugf(DBG_LEVEL_EXTALL, KCYN"send_request_size: atime=[%s]", atime_str_nice);
 				get_timespec_as_str(&(de->mtime), mtime_str_nice, sizeof(mtime_str_nice));
-				debugf(DBG_LEVEL_EXT, KCYN"send_request_size: mtime=[%s]", mtime_str_nice);
+				debugf(DBG_LEVEL_EXTALL, KCYN"send_request_size: mtime=[%s]", mtime_str_nice);
 				get_timespec_as_str(&(de->ctime), ctime_str_nice, sizeof(ctime_str_nice));
-				debugf(DBG_LEVEL_EXT, KCYN"send_request_size: ctime=[%s]", ctime_str_nice);
+				debugf(DBG_LEVEL_EXTALL, KCYN"send_request_size: ctime=[%s]", ctime_str_nice);
 
 				char mtime_str[TIME_CHARS], atime_str[TIME_CHARS], ctime_str[TIME_CHARS];
         char string_float[TIME_CHARS];
@@ -991,7 +991,7 @@ int cloudfs_object_read_fp(const char *path, FILE *fp)
   }
   else{
     // assume enters here when file is composed of only one segment (small files)
-    debugf(DBG_LEVEL_EXT, KRED"cloudfs_object_read_fp(%s) unknown state", path);
+    debugf(DBG_LEVEL_EXT, "cloudfs_object_read_fp(%s) "KYEL"unknown state", path);
   }
 
   rewind(fp);
