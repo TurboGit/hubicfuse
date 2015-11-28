@@ -19,6 +19,8 @@
 #include <pwd.h>
 #include <fuse.h>
 #include <limits.h>
+#include <curl/curl.h>
+#include <curl/easy.h>
 #include "commonfs.h"
 #include "config.h"
 
@@ -36,6 +38,7 @@ int option_debug_level = 0;
 int option_curl_progress_state = 1;//1 to disable curl progress
 bool option_enable_chown = false;
 bool option_enable_chmod = false;
+size_t file_buffer_size = 0;
 
 // needed to get correct GMT / local time, as it does not work
 // http://zhu-qy.blogspot.ro/2012/11/ref-how-to-convert-from-utc-to-local.html
@@ -142,6 +145,34 @@ char *str2md5(const char *str, int length) {
   return out;
 }
 
+// http://stackoverflow.com/questions/10324611/how-to-calculate-the-md5-hash-of-a-large-file-in-c
+int file_md5(FILE *file_handle, char *md5_file_str) {
+  if (file_handle == NULL) {
+    debugf(DBG_LEVEL_NORM, KRED"file_md5: NULL file handle");
+    return 0;
+  }
+  if (file_buffer_size == 0) {
+    debugf(DBG_LEVEL_NORM, KYEL"file_md5: 0 file buffer size, using default");
+    file_buffer_size = 1024;
+  }
+  unsigned char c[MD5_DIGEST_LENGTH];
+  int i;
+  MD5_CTX mdContext;
+  int bytes;
+  char mdchar[3];//2 chars for md5 + null string terminator
+  unsigned char *data_buf = malloc(file_buffer_size * sizeof(unsigned char));
+  MD5_Init(&mdContext);
+  while ((bytes = fread(data_buf, 1, file_buffer_size, file_handle)) != 0)
+    MD5_Update(&mdContext, data_buf, bytes);
+  MD5_Final(c, &mdContext);
+  for (i = 0; i < MD5_DIGEST_LENGTH; i++) {
+    snprintf(mdchar, 3, "%02x", c[i]);
+    strcat(md5_file_str, mdchar);
+    //fprintf(stderr, "%02x", c[i]);
+  }
+  free(data_buf);
+  return 0;
+}
 
 int get_safe_cache_file_path(const char *path, char *file_path_safe, char *temp_dir) {
 	char tmp_path[PATH_MAX];
@@ -179,13 +210,13 @@ void get_file_path_from_fd(int fd, char *path, int size_path) {
 void debug_print_flags(int flags) {
 	int accmode, val;
 	accmode = flags & O_ACCMODE;
-	if (accmode == O_RDONLY)				debugf(DBG_LEVEL_EXT, KRED "read only");
-	else if (accmode == O_WRONLY)   debugf(DBG_LEVEL_EXT, KRED "write only");
-	else if (accmode == O_RDWR)     debugf(DBG_LEVEL_EXT, KRED "read write");
-	else debugf(DBG_LEVEL_EXT, KRED "unknown access mode");
+	if (accmode == O_RDONLY)				debugf(DBG_LEVEL_EXTALL, KYEL"read only");
+	else if (accmode == O_WRONLY)   debugf(DBG_LEVEL_EXTALL, KYEL"write only");
+	else if (accmode == O_RDWR)     debugf(DBG_LEVEL_EXTALL, KYEL"read write");
+	else debugf(DBG_LEVEL_EXT, KYEL"unknown access mode");
 
-	if (val & O_APPEND)         debugf(DBG_LEVEL_EXT, KRED ", append");
-	if (val & O_NONBLOCK)       debugf(DBG_LEVEL_EXT, KRED ", nonblocking");
+	if (val & O_APPEND)         debugf(DBG_LEVEL_EXTALL, KYEL", append");
+	if (val & O_NONBLOCK)       debugf(DBG_LEVEL_EXTALL, KYEL", nonblocking");
 #if !defined(_POSIX_SOURCE) && defined(O_SYNC)
 	if (val & O_SYNC)           debugf(DBG_LEVEL_EXT, 0,KRED ", synchronous writes");
 #endif
@@ -555,7 +586,7 @@ dir_entry *check_path_info(const char *path)
 		}
 	}
 	if (!strcmp(path, "/")) {
-		debugf(DBG_LEVEL_EXT, "exit 2: check_path_info(%s) "KYEL "ignoring root [CACHE-MISS]", path);
+		debugf(DBG_LEVEL_EXT, "exit 2: check_path_info(%s) "KYEL"ignoring root [CACHE-MISS]", path);
 	}
 	else {
 		debugf(DBG_LEVEL_EXT, "exit 3: check_path_info(%s) "KYEL"[CACHE-MISS]", path);

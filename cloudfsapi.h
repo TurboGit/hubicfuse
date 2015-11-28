@@ -15,7 +15,7 @@
 
 typedef struct curl_slist curl_slist;
 
-#define MINIMAL_PROGRESS_FUNCTIONALITY_INTERVAL 3
+#define MINIMAL_PROGRESS_FUNCTIONALITY_INTERVAL 5
 struct curl_progress {
   double lastruntime;
   CURL *curl;
@@ -82,4 +82,5 @@ void cloudfs_verify_ssl(int dbg);
 void cloudfs_option_get_extended_metadata(int option);
 void cloudfs_option_curl_verbose(int option);
 void get_file_metadata(dir_entry *de);
+int cloudfs_update_meta(dir_entry *de);
 #endif

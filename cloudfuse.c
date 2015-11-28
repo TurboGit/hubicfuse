@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <openssl/md5.h>
 #include "commonfs.h"
 #include "cloudfsapi.h"
 #include "config.h"
@@ -25,9 +26,10 @@ extern int cache_timeout;
 extern int option_cache_statfs_timeout;
 extern int option_debug_level;
 extern bool option_get_extended_metadata;
-extern int option_curl_progress_state;
+extern bool option_curl_progress_state;
 extern bool option_enable_chown;
 extern bool option_enable_chmod;
+extern size_t file_buffer_size;
 
 typedef struct
 {
@@ -235,7 +237,15 @@ static int cfs_create(const char *path, mode_t mode, struct fuse_file_info *info
 		debugf(DBG_LEVEL_EXT, KCYN"cfs_create: mtime=[%s]", time_str);
 		get_timespec_as_str(&(de->ctime), time_str, sizeof(time_str));
 		debugf(DBG_LEVEL_EXT, KCYN"cfs_create: ctime=[%s]", time_str);
+
+    //set chmod & chown
+    de->chmod = mode;
+    de->uid = geteuid();
+    de->gid = getegid();
 	}
+  else {
+    debugf(DBG_LEVEL_EXT, KBLU "cfs_create(%s) "KYEL"dir-entry not found", path);
+  }
 	debugf(DBG_LEVEL_NORM, KBLU "exit 2: cfs_create(%s) result=%d:%s", path, errsv, strerror(errsv));
   return 0;
 }
@@ -321,7 +331,6 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
     }
   }
 
-  
   update_dir_cache(path, (de ? de->size : 0), 0, 0);
   openfile *of = (openfile *)malloc(sizeof(openfile));
   of->fd = dup(fileno(temp_file));
@@ -344,13 +353,16 @@ static int cfs_open(const char *path, struct fuse_file_info *info)
 
 static int cfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *info)
 {
-  debugf(DBG_LEVEL_EXTALL, KBLU "cfs_read(%s)", path);
+  debugf(DBG_LEVEL_EXTALL, KBLU "cfs_read(%s) buffsize=%lu offset=%lu", path, size, offset);
+  file_buffer_size = size;
 	debug_print_descriptor(info);
 	int result = pread(((openfile *)(uintptr_t)info->fh)->fd, buf, size, offset);
 	debugf(DBG_LEVEL_EXTALL, KBLU "exit: cfs_read(%s) result=%s", path, strerror(errno));
 	return result;
 }
 
+//todo: flush will upload a file again even if just file attributes are changed. 
+//optimisation needed to detect if content is changed and to only save meta when just attribs are modified.
 static int cfs_flush(const char *path, struct fuse_file_info *info)
 {
   debugf(DBG_LEVEL_NORM, KBLU "cfs_flush(%s)", path);
@@ -365,12 +377,25 @@ static int cfs_flush(const char *path, struct fuse_file_info *info)
 			errsv = errno;
 			if (fp != NULL) {
 				rewind(fp);
-				if (!cloudfs_object_read_fp(path, fp)) {
-					fclose(fp);
-					errsv = errno;
-					debugf(DBG_LEVEL_NORM, KRED"exit 0: cfs_flush(%s) result=%d:%s", path, errsv, strerror(errno));
-					return -ENOENT;
-				}
+        //todo: calculate md5 hash, compare with cloud hash to determine if file content is changed
+        char md5_file_hash_str[MD5_DIGEST_LENGTH + 1] = "\0";
+        file_md5(fp, md5_file_hash_str);
+        dir_entry *de = check_path_info(path);
+        if (de && !strcasecmp(md5_file_hash_str, de->md5sum)) {
+          //file content is identical, no need to upload entire file, just update metadata
+          debugf(DBG_LEVEL_NORM, KBLU "cfs_flush(%s): skip full upload as content did not change", path);
+          cloudfs_update_meta(de);
+        }
+        else {
+          rewind(fp);
+          debugf(DBG_LEVEL_NORM, KBLU "cfs_flush(%s): perform full upload as content changed (or no file found in cache)", path);
+          if (!cloudfs_object_read_fp(path, fp)) {
+            fclose(fp);
+            errsv = errno;
+            debugf(DBG_LEVEL_NORM, KRED"exit 0: cfs_flush(%s) result=%d:%s", path, errsv, strerror(errno));
+            return -ENOENT;
+          }
+        }
 				fclose(fp);
 				errsv = errno;
 			}
@@ -410,6 +435,7 @@ static int cfs_rmdir(const char *path)
 static int cfs_ftruncate(const char *path, off_t size, struct fuse_file_info *info)
 {
   debugf(DBG_LEVEL_NORM, KBLU "cfs_ftruncate(%s)", path);
+  file_buffer_size = size;
   openfile *of = (openfile *)(uintptr_t)info->fh;
   if (ftruncate(of->fd, size))
     return -errno;
@@ -421,13 +447,18 @@ static int cfs_ftruncate(const char *path, off_t size, struct fuse_file_info *in
 
 static int cfs_write(const char *path, const char *buf, size_t length, off_t offset, struct fuse_file_info *info)
 {
-  debugf(DBG_LEVEL_EXTALL, KBLU "cfs_write(%s)", path);
+  debugf(DBG_LEVEL_EXTALL, KBLU "cfs_write(%s) bufflength=%lu offset=%lu", path, length, offset);
   // FIXME: Potential inconsistent cache update if pwrite fails?
   update_dir_cache(path, offset + length, 0, 0);
 	//int result = pwrite(info->fh, buf, length, offset);
 	int result = pwrite(((openfile *)(uintptr_t)info->fh)->fd, buf, length, offset);
 	int errsv = errno;
-	debugf(DBG_LEVEL_EXTALL, KBLU "exit: cfs_write(%s) result=%d:%s", path, errsv, strerror(errsv));
+  if (result == 0) {
+    debugf(DBG_LEVEL_EXTALL, KBLU "exit 0: cfs_write(%s) result=%d:%s", path, errsv, strerror(errsv));
+  }
+  else {
+    debugf(DBG_LEVEL_NORM, KBLU "exit 1: cfs_write(%s) "KRED"result=%d:%s", path, errsv, strerror(errsv));
+  }
 	return result;
 }
 
@@ -486,6 +517,8 @@ static int cfs_chown(const char *path, uid_t uid, gid_t gid)
       debugf(DBG_LEVEL_NORM, "cfs_chown(%s): change from uid:gid %d:%d to %d:%d", path, de->uid, de->gid, uid, gid);
       de->uid = uid;
       de->gid = gid;
+      //issue a PUT request to update metadata (quick request just to update headers)
+      int response = cloudfs_update_meta(de);
     }
   }
   return 0;
@@ -499,6 +532,8 @@ static int cfs_chmod(const char *path, mode_t mode)
     if (de->chmod != mode) {
       debugf(DBG_LEVEL_NORM, "cfs_chmod(%s): change mode from %d to %d", path, de->chmod, mode);
       de->chmod = mode;
+      //todo: issue a PUT request to update metadata (empty request just to update headers?)
+      int response = cloudfs_update_meta(de);
     }
   }
   return 0;
@@ -605,8 +640,13 @@ static int cfs_utimens(const char *path, const struct timespec times[2]){
 		debugf(DBG_LEVEL_EXT, KCYN"cfs_utimens: set atime=[%s]", time_str);
 		path_de->atime = times[0];
 		path_de->mtime = times[1];
-		// not sure how to best obtain ctime from fuse. just record current date.
+		// not sure how to best obtain ctime from fuse source file. just record current date.
 		path_de->ctime = now;
+    //calling a meta cloud update here is not always needed. 
+    //touch for example opens and closes/flush the file.
+    //worth implementing a meta cache functionality to avoid multiple uploads on meta changes
+    //when changing timestamps on very large files, touch command will trigger 2 x long and useless file uploads on cfs_flush()
+    //cloudfs_update_meta(path_de);
 	}
 	else {
 		debugf(DBG_LEVEL_EXT, KCYN"cfs_utimens: a/m/time not changed");
@@ -645,7 +685,7 @@ ExtraFuseOptions extra_options = {
 	.curl_verbose = "false",
 	.cache_statfs_timeout = 0,
   .debug_level = 0,
-  .curl_progress_state = 1,
+  .curl_progress_state = "false",
   .enable_chown = "false",
   .enable_chmod = "false"
 };
@@ -699,7 +739,7 @@ void initialise_options() {
 		option_cache_statfs_timeout = atoi(extra_options.cache_statfs_timeout);
 	}
   if (*extra_options.curl_progress_state) {
-    option_curl_progress_state = atoi(extra_options.curl_progress_state);
+    option_curl_progress_state = !strcasecmp(extra_options.curl_progress_state, "true");
   }
   if (*extra_options.enable_chmod) {
     option_enable_chmod = !strcasecmp(extra_options.enable_chmod, "true");
@@ -756,9 +796,9 @@ int main(int argc, char **argv)
 
 		fprintf(stderr, "  get_extended_metadata=[true to enable download of utime, chmod, chown file attributes (but slower)]\n");
 		fprintf(stderr, "  curl_verbose=[true to debug info on curl requests (lots of output)]\n");
-    fprintf(stderr, "  curl_progress_state=[0 or 1, 0 for progress callback enabled, 1 for disabled. Mostly used for debugging]\n");
+    fprintf(stderr, "  curl_progress_state=[true to enable progress callback enabled. Mostly used for debugging]\n");
     fprintf(stderr, "  cache_statfs_timeout=[number of seconds to cache requests to statfs (cloud statistics), 0 for no cache]\n");
-		fprintf(stderr, "  debug_level=[0 to n, 0 for minimal verbose debugging. No debug if -d or -f option is not provided.]\n");
+		fprintf(stderr, "  debug_level=[0 to 3, 0 for minimal verbose debugging. No debug if -d or -f option is not provided.]\n");
     fprintf(stderr, "  enable_chmod=[true to enable chmod support on fuse]\n");
     fprintf(stderr, "  enable_chown=[true to enable chown support on fuse]\n");
 		
