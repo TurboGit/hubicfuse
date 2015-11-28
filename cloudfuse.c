@@ -191,9 +191,9 @@ static int cfs_create(const char *path, mode_t mode, struct fuse_file_info *info
   debugf(DBG_LEVEL_NORM, KBLU "cfs_create(%s)", path);
   FILE *temp_file;
 	int errsv;
+  char file_path_safe[NAME_MAX] = "";
 
-  if (*temp_dir) {
-    char file_path_safe[NAME_MAX] = "";
+  if (*temp_dir) {  
 		get_safe_cache_file_path(path, file_path_safe, temp_dir);
     temp_file = fopen(file_path_safe, "w+b");
 		errsv = errno;
@@ -246,12 +246,13 @@ static int cfs_create(const char *path, mode_t mode, struct fuse_file_info *info
   else {
     debugf(DBG_LEVEL_EXT, KBLU "cfs_create(%s) "KYEL"dir-entry not found", path);
   }
-	debugf(DBG_LEVEL_NORM, KBLU "exit 2: cfs_create(%s) result=%d:%s", path, errsv, strerror(errsv));
+	debugf(DBG_LEVEL_NORM, KBLU "exit 2: cfs_create(%s)=(%s) result=%d:%s", path, file_path_safe, errsv, strerror(errsv));
   return 0;
 }
 
 
 // open (download) file from cloud
+// todo: implement etag optimisation, download only if content changed, http://www.17od.com/2012/12/19/ten-useful-openstack-swift-features/
 static int cfs_open(const char *path, struct fuse_file_info *info)
 {
   debugf(DBG_LEVEL_NORM, KBLU "cfs_open(%s)", path);
@@ -381,7 +382,7 @@ static int cfs_flush(const char *path, struct fuse_file_info *info)
         char md5_file_hash_str[MD5_DIGEST_LENGTH + 1] = "\0";
         file_md5(fp, md5_file_hash_str);
         dir_entry *de = check_path_info(path);
-        if (de && !strcasecmp(md5_file_hash_str, de->md5sum)) {
+        if (de && de->md5sum != NULL && (!strcasecmp(md5_file_hash_str, de->md5sum))) {
           //file content is identical, no need to upload entire file, just update metadata
           debugf(DBG_LEVEL_NORM, KBLU "cfs_flush(%s): skip full upload as content did not change", path);
           cloudfs_update_meta(de);
@@ -453,11 +454,11 @@ static int cfs_write(const char *path, const char *buf, size_t length, off_t off
 	//int result = pwrite(info->fh, buf, length, offset);
 	int result = pwrite(((openfile *)(uintptr_t)info->fh)->fd, buf, length, offset);
 	int errsv = errno;
-  if (result == 0) {
+  if (errsv == 0) {
     debugf(DBG_LEVEL_EXTALL, KBLU "exit 0: cfs_write(%s) result=%d:%s", path, errsv, strerror(errsv));
   }
   else {
-    debugf(DBG_LEVEL_NORM, KBLU "exit 1: cfs_write(%s) "KRED"result=%d:%s", path, errsv, strerror(errsv));
+    debugf(DBG_LEVEL_EXTALL, KBLU "exit 1: cfs_write(%s) "KRED"result=%d:%s", path, errsv, strerror(errsv));
   }
 	return result;
 }
@@ -665,6 +666,13 @@ int cfs_getxattr(const char *path, const char *name, char *value, size_t size){
   return 0;
 }
 
+int cfs_removexattr(const char *path, const char *name) {
+  return 0;
+}
+
+int cfs_listxattr(const char *path, char *list, size_t size) {
+  return 0;
+}
 
 FuseOptions options = {
     .cache_timeout = "600",
@@ -849,8 +857,12 @@ int main(int argc, char **argv)
     .readlink = cfs_readlink,
     .init = cfs_init,
     .utimens = cfs_utimens,
+#ifdef HAVE_SETXATTR
     .setxattr = cfs_setxattr,
     .getxattr = cfs_getxattr,
+    .listxattr = cfs_listxattr,
+    .removexattr = cfs_removexattr,
+#endif
   };
 
 	pthread_mutexattr_init(&mutex_attr);
