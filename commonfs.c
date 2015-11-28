@@ -358,7 +358,7 @@ dir_entry* init_dir_entry() {
   de->metadata_downloaded = false;
 	de->size = 0;
 	de->next = NULL;
-	de->md5sum = "\0";
+	de->md5sum = NULL;
 	de->accessed_in_cache = time(NULL);
 	de->last_modified = time(NULL);
 	de->mtime.tv_sec = time(NULL);
