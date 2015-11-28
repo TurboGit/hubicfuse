@@ -15,7 +15,7 @@
 
 typedef struct curl_slist curl_slist;
 
-#define MINIMAL_PROGRESS_FUNCTIONALITY_INTERVAL 3
+#define MINIMAL_PROGRESS_FUNCTIONALITY_INTERVAL 5
 struct curl_progress {
   double lastruntime;
   CURL *curl;

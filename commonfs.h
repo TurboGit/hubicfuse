@@ -87,6 +87,7 @@ time_t get_time_now();
 int get_timespec_as_str(const struct timespec *times, char *time_str, int time_str_len);
 
 char *str2md5(const char *str, int length);
+int file_md5(FILE *file_handle, char *md5_file_str);
 void debug_print_descriptor(struct fuse_file_info *info);
 int get_safe_cache_file_path(const char *file_path, char *file_path_safe, char *temp_dir);
 
