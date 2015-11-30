@@ -55,3 +55,18 @@ Makefile: Makefile.in config.status
 config.status: configure
 	./config.status --recheck
 
+reformat:
+	astyle --style=allman \
+		--convert-tabs \
+		--indent=spaces=2 \
+		--lineend=linux \
+		--max-code-length=79 \
+		--pad-oper \
+		--pad-header \
+		--align-pointer=type \
+		--align-reference=name \
+		--break-closing-brackets \
+		--min-conditional-indent=0 \
+		--remove-brackets \
+		--remove-comment-prefix \
+		*.c *.h
