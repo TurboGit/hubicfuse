@@ -29,7 +29,7 @@ hubicfuse: $(SOURCES) $(HEADERS)
 	$(CC) $(CFLAGS) -o hubicfuse $(SOURCES) $(LIBS) $(LDFLAGS)
 
 clean:
-	/bin/rm -f hubicfuse
+	/bin/rm -fr hubicfuse *.orig config.h *~ aclocal.m4 autom4te.cache
 
 distclean: clean
 	/bin/rm -f Makefile config.h config.status config.cache config.log \
