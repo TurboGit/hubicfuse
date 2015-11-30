@@ -6,7 +6,7 @@ temp_dir = /tmp/hubicfuse
 
 get_extended_metadata = true
 curl_verbose = false
-curl_progress_state = 1
+curl_progress_state = true
 cache_statfs_timeout = 15
 debug_level = 0
 enable_chmod = false

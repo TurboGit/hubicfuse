@@ -92,20 +92,20 @@ BUGS/SHORTCOMINGS:
       "application/directory".
     * Cloud Files limits container and object listings to 10,000 items.
       cloudfuse won't list more than that many files in a single directory.
-	* File copy progress when uploading does not work, progress is shown when file 
-	  is copied in local cache, then upload operation happens at 100%
+	  * File copy progress when uploading does not work, progress is shown when file 
+	    is copied in local cache, then upload operation happens at 100%
 
-Recent additions/fixes (from https://github.com/dan-cristian):
-	* Support for atime, mtime, chmod, chown.
-	* Large files (segmented) have correct size listed (was 0 before).
-	* Multiple speed improvements, minimised the number of HTTP calls and added more caching features.
-	* Fixed many segmentation faults.
-	* Cached files are deleted on cache expiration when using a custom temp folder.
-	* Files copied have attributes preserved.
-	* Working well with rsync due to mtime support and proper copy operations.
-	* Debugging support for http progress (track upload / download speed etc.)
-	* Reduced traffic, skips file uploads to cloud if content does not change (using md5sum compare)
-	* Major code refactoring, code documentation, extensive debugging, additional config options
+Recent additions/fixes:
+    * Support for atime, mtime, chmod, chown.
+    * Large files (segmented) have correct size listed (was 0 before).
+    * Multiple speed improvements, minimised the number of HTTP calls and added more caching features.
+    * Fixed many segmentation faults.
+    * Cached files are deleted on cache expiration when using a custom temp folder.
+    * Files copied have attributes preserved.
+    * Working well with rsync due to mtime support and proper copy operations.
+    * Debugging support for http progress (track upload / download speed etc.)
+    * Reduced traffic, skips file uploads to cloud if content does not change (using md5sum compare)
+    * Major code refactoring, code documentation, extensive debugging, additional config options
 
 AWESOME CONTRIBUTORS:
 
@@ -119,6 +119,7 @@ AWESOME CONTRIBUTORS:
     * Mike Lundy                         https://github.com/novas0x2a
     * justinb                            https://github.com/justinsb
     * Matt Greenway                      https://github.com/LabAdvComp
+    * Dan Cristian                       https://github.com/dan-cristian
 
 Thanks, and I hope you find it useful.
 
