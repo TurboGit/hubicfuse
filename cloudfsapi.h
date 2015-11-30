@@ -51,12 +51,12 @@ int cloudfs_connect(void);
 
 struct segment_info
 {
-    FILE *fp;
-    int part;
-    long size;
-    long segment_size;
-    char *seg_base;
-    const char *method;
+  FILE *fp;
+  int part;
+  long size;
+  long segment_size;
+  char *seg_base;
+  const char *method;
 };
 
 long segment_size;

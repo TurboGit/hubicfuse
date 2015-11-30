@@ -619,10 +619,12 @@ static void *cfs_init(struct fuse_conn_info *conn)
 }
 
 //http://man7.org/linux/man-pages/man2/utimensat.2.html
-static int cfs_utimens(const char *path, const struct timespec times[2]){
+static int cfs_utimens(const char *path, const struct timespec times[2])
+{
   debugf(DBG_LEVEL_NORM, KBLU "cfs_utimens(%s)", path);
   dir_entry *path_de = path_info(path);
-  if (!path_de) {
+  if (!path_de)
+  {
     debugf(DBG_LEVEL_NORM, KRED"exit 0: cfs_utimens(%s) file not in cache", path);
     return -ENOENT;
   }
@@ -630,7 +632,8 @@ static int cfs_utimens(const char *path, const struct timespec times[2]){
   clock_gettime(CLOCK_REALTIME, &now);
 
   if (path_de->atime.tv_sec != times[0].tv_sec || path_de->atime.tv_nsec != times[0].tv_nsec ||
-      path_de->mtime.tv_sec != times[1].tv_sec || path_de->mtime.tv_nsec != times[1].tv_nsec) {
+      path_de->mtime.tv_sec != times[1].tv_sec || path_de->mtime.tv_nsec != times[1].tv_nsec)
+  {
     debugf(DBG_LEVEL_EXT, KCYN "cfs_utimens: change for %s, prev: atime=%li.%li mtime=%li.%li, new: atime=%li.%li mtime=%li.%li", path,
       path_de->atime.tv_sec, path_de->atime.tv_nsec, path_de->mtime.tv_sec, path_de->mtime.tv_nsec,
       times[0].tv_sec, times[0].tv_nsec, times[1].tv_sec, times[1].tv_nsec);
@@ -651,40 +654,43 @@ static int cfs_utimens(const char *path, const struct timespec times[2]){
   else {
     debugf(DBG_LEVEL_EXT, KCYN"cfs_utimens: a/m/time not changed");
   }
-
   debugf(DBG_LEVEL_NORM, KBLU "exit 1: cfs_utimens(%s)", path);
   return 0;
 }
 
 
-int cfs_setxattr(const char *path, const char *name, const char *value, size_t size, int flags){
+int cfs_setxattr(const char *path, const char *name, const char *value, size_t size, int flags)
+{
   return 0;
 }
 
-int cfs_getxattr(const char *path, const char *name, char *value, size_t size){
+int cfs_getxattr(const char *path, const char *name, char *value, size_t size)
+{
   return 0;
 }
 
-int cfs_removexattr(const char *path, const char *name) {
+int cfs_removexattr(const char *path, const char *name)
+{
   return 0;
 }
 
-int cfs_listxattr(const char *path, char *list, size_t size) {
+int cfs_listxattr(const char *path, char *list, size_t size)
+{
   return 0;
 }
 
 FuseOptions options = {
-    .cache_timeout = "600",
-    .verify_ssl = "true",
-    .segment_size = "1073741824",
-    .segment_above = "2147483647",
-    .storage_url = "",
-    .container = "",
-    //.temp_dir = "/tmp/",
-    .temp_dir = "",
-    .client_id = "",
-    .client_secret = "",
-    .refresh_token = ""
+  .cache_timeout = "600",
+  .verify_ssl = "true",
+  .segment_size = "1073741824",
+  .segment_above = "2147483647",
+  .storage_url = "",
+  .container = "",
+  //.temp_dir = "/tmp/",
+  .temp_dir = "",
+  .client_id = "",
+  .client_secret = "",
+  .refresh_token = ""
 };
 
 ExtraFuseOptions extra_options = {
@@ -735,23 +741,31 @@ void interrupt_handler(int sig) {
   exit(0);
 }
 
-void initialise_options() {
+void initialise_options()
+{
+  //todo: handle param init consistently, quite heavy implementation
   cloudfs_verify_ssl(!strcasecmp(options.verify_ssl, "true"));
   cloudfs_option_get_extended_metadata(!strcasecmp(extra_options.get_extended_metadata, "true"));
   cloudfs_option_curl_verbose(!strcasecmp(extra_options.curl_verbose, "true"));
-  if (*extra_options.debug_level) {
+  //lean way to init params, to be used as reference
+  if (*extra_options.debug_level)
+  {
     option_debug_level = atoi(extra_options.debug_level);
   }
-  if (*extra_options.cache_statfs_timeout) {
+  if (*extra_options.cache_statfs_timeout)
+  {
     option_cache_statfs_timeout = atoi(extra_options.cache_statfs_timeout);
   }
-  if (*extra_options.curl_progress_state) {
+  if (*extra_options.curl_progress_state)
+  {
     option_curl_progress_state = !strcasecmp(extra_options.curl_progress_state, "true");
   }
-  if (*extra_options.enable_chmod) {
+  if (*extra_options.enable_chmod)
+  {
     option_enable_chmod = !strcasecmp(extra_options.enable_chmod, "true");
   }
-  if (*extra_options.enable_chown) {
+  if (*extra_options.enable_chown)
+  {
     option_enable_chown = !strcasecmp(extra_options.enable_chown, "true");
   }
 }
@@ -775,7 +789,6 @@ int main(int argc, char **argv)
   }
 
   fuse_opt_parse(&args, &options, NULL, parse_option);
-
   cache_timeout = atoi(options.cache_timeout);
   segment_size = atoll(options.segment_size);
   segment_above = atoll(options.segment_above);
@@ -800,18 +813,15 @@ int main(int argc, char **argv)
     fprintf(stderr, "  storage_url=[Storage URL for other tenant to view container]\n");
     fprintf(stderr, "  container=[Public container to view of tenant specified by storage_url]\n");
     fprintf(stderr, "  temp_dir=[Directory to store temp files]\n");
-
     fprintf(stderr, "  get_extended_metadata=[true to enable download of utime, chmod, chown file attributes (but slower)]\n");
     fprintf(stderr, "  curl_verbose=[true to debug info on curl requests (lots of output)]\n");
     fprintf(stderr, "  curl_progress_state=[true to enable progress callback enabled. Mostly used for debugging]\n");
     fprintf(stderr, "  cache_statfs_timeout=[number of seconds to cache requests to statfs (cloud statistics), 0 for no cache]\n");
-    fprintf(stderr, "  debug_level=[0 to 3, 0 for minimal verbose debugging. No debug if -d or -f option is not provided.]\n");
+    fprintf(stderr, "  debug_level=[0 to 2, 0 for minimal verbose debugging. No debug if -d or -f option is not provided.]\n");
     fprintf(stderr, "  enable_chmod=[true to enable chmod support on fuse]\n");
     fprintf(stderr, "  enable_chown=[true to enable chown support on fuse]\n");
-    
     return 1;
   }
-
   cloudfs_init();
   initialise_options();
   if (debug)
@@ -829,41 +839,41 @@ int main(int argc, char **argv)
     fprintf(stderr, "Failed to authenticate.\n");
     return 1;
   }
-
+  //todo: check why in some cases the define below is not available (when running the binary on symbolic linked folders)
   #ifndef HAVE_OPENSSL
   #warning Compiling without libssl, will run single-threaded.
   fuse_opt_add_arg(&args, "-s");
   #endif
 
   struct fuse_operations cfs_oper = {
-    .readdir = cfs_readdir,
-    .mkdir = cfs_mkdir,
-    .read = cfs_read,
-    .create = cfs_create,
-    .open = cfs_open,
-    .fgetattr = cfs_fgetattr,
-    .getattr = cfs_getattr,
-    .flush = cfs_flush,
-    .release = cfs_release,
-    .rmdir = cfs_rmdir,
-    .ftruncate = cfs_ftruncate,
-    .truncate = cfs_truncate,
-    .write = cfs_write,
-    .unlink = cfs_unlink,
-    .fsync = cfs_fsync,
-    .statfs = cfs_statfs,
-    .chmod = cfs_chmod,
-    .chown = cfs_chown,
-    .rename = cfs_rename,
-    .symlink = cfs_symlink,
-    .readlink = cfs_readlink,
-    .init = cfs_init,
-    .utimens = cfs_utimens,
+  .readdir = cfs_readdir,
+  .mkdir = cfs_mkdir,
+  .read = cfs_read,
+  .create = cfs_create,
+  .open = cfs_open,
+  .fgetattr = cfs_fgetattr,
+  .getattr = cfs_getattr,
+  .flush = cfs_flush,
+  .release = cfs_release,
+  .rmdir = cfs_rmdir,
+  .ftruncate = cfs_ftruncate,
+  .truncate = cfs_truncate,
+  .write = cfs_write,
+  .unlink = cfs_unlink,
+  .fsync = cfs_fsync,
+  .statfs = cfs_statfs,
+  .chmod = cfs_chmod,
+  .chown = cfs_chown,
+  .rename = cfs_rename,
+  .symlink = cfs_symlink,
+  .readlink = cfs_readlink,
+  .init = cfs_init,
+  .utimens = cfs_utimens,
 #ifdef HAVE_SETXATTR
-    .setxattr = cfs_setxattr,
-    .getxattr = cfs_getxattr,
-    .listxattr = cfs_listxattr,
-    .removexattr = cfs_removexattr,
+  .setxattr = cfs_setxattr,
+  .getxattr = cfs_getxattr,
+  .listxattr = cfs_listxattr,
+  .removexattr = cfs_removexattr,
 #endif
   };
 
