@@ -16,12 +16,14 @@
 typedef struct curl_slist curl_slist;
 
 #define MINIMAL_PROGRESS_FUNCTIONALITY_INTERVAL 5
-struct curl_progress {
+struct curl_progress
+{
   double lastruntime;
-  CURL *curl;
+  CURL* curl;
 };
 
-typedef struct options {
+typedef struct options
+{
   char cache_timeout[OPTION_SIZE];
   char verify_ssl[OPTION_SIZE];
   char segment_size[OPTION_SIZE];
@@ -34,7 +36,8 @@ typedef struct options {
   char refresh_token[OPTION_SIZE];
 } FuseOptions;
 
-typedef struct extra_options {
+typedef struct extra_options
+{
   char get_extended_metadata[OPTION_SIZE];
   char curl_verbose[OPTION_SIZE];
   char cache_statfs_timeout[OPTION_SIZE];
@@ -46,40 +49,41 @@ typedef struct extra_options {
 
 void cloudfs_init(void);
 void cloudfs_free(void);
-void cloudfs_set_credentials(char *client_id, char *client_secret, char *refresh_token);
+void cloudfs_set_credentials(char* client_id, char* client_secret,
+                             char* refresh_token);
 int cloudfs_connect(void);
 
 struct segment_info
 {
-  FILE *fp;
+  FILE* fp;
   int part;
   long size;
   long segment_size;
-  char *seg_base;
-  const char *method;
+  char* seg_base;
+  const char* method;
 };
 
 long segment_size;
 long segment_above;
 
-char *override_storage_url;
-char *public_container;
+char* override_storage_url;
+char* public_container;
 
-int file_is_readable(const char *fname);
-const char * get_file_mimetype ( const char *filename );
-int cloudfs_object_read_fp(const char *path, FILE *fp);
-int cloudfs_object_write_fp(const char *path, FILE *fp);
-int cloudfs_list_directory(const char *path, dir_entry **);
-int cloudfs_delete_object(const char *path);
-int cloudfs_copy_object(const char *src, const char *dst);
-int cloudfs_create_symlink(const char *src, const char *dst);
-int cloudfs_create_directory(const char *label);
-int cloudfs_object_truncate(const char *path, off_t size);
+int file_is_readable(const char* fname);
+const char* get_file_mimetype ( const char* filename );
+int cloudfs_object_read_fp(const char* path, FILE* fp);
+int cloudfs_object_write_fp(const char* path, FILE* fp);
+int cloudfs_list_directory(const char* path, dir_entry**);
+int cloudfs_delete_object(const char* path);
+int cloudfs_copy_object(const char* src, const char* dst);
+int cloudfs_create_symlink(const char* src, const char* dst);
+int cloudfs_create_directory(const char* label);
+int cloudfs_object_truncate(const char* path, off_t size);
 off_t cloudfs_file_size(int fd);
-int cloudfs_statfs(const char *path, struct statvfs *stat);
+int cloudfs_statfs(const char* path, struct statvfs* stat);
 void cloudfs_verify_ssl(int dbg);
 void cloudfs_option_get_extended_metadata(int option);
 void cloudfs_option_curl_verbose(int option);
-void get_file_metadata(dir_entry *de);
-int cloudfs_update_meta(dir_entry *de);
+void get_file_metadata(dir_entry* de);
+int cloudfs_update_meta(dir_entry* de);
 #endif
