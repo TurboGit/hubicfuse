@@ -772,7 +772,9 @@ void initialise_options()
 
 int main(int argc, char **argv)
 {
-  fprintf(stderr, "Starting hubicfuse on homedir %s!\n", get_home_dir());
+  if (debug)
+    fprintf(stderr, "Starting hubicfuse on homedir %s!\n", get_home_dir());
+
   signal(SIGINT, interrupt_handler);
 
   char settings_filename[MAX_PATH_SIZE] = "";
