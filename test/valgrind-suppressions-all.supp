@@ -1,0 +1,164 @@
+{
+   curl_easyCond
+   Memcheck:Cond
+   ...
+   fun:curl_easy_perform
+   ...
+}
+{
+   curl_easyValue8
+   Memcheck:Value8
+   ...
+   fun:curl_easy_perform
+   ...
+}
+
+{
+   curl_init
+   Memcheck:Cond
+   ...
+   fun:curl_global_init
+   ...
+}
+{
+   curl_init
+   Memcheck:Value8
+   ...
+   fun:curl_global_init
+   ...
+}
+{
+   curl_curl_multi_performleak
+   Memcheck:Leak
+   ...
+   fun:curl_multi_perform
+   ...
+}
+{
+   curlparam
+   Memcheck:Param
+   write(buf)
+   ...
+   fun:curl_multi_perform
+   ...
+}
+{
+   curllibcurl
+   Memcheck:Cond
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libcurl.so.4.3.0
+}
+{
+   curl_global_initleak
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:curl_global_init
+   ...
+}
+
+{
+   libcurlsendmsg
+   Memcheck:Param
+   sendmsg(mmsg[1].msg_hdr.msg_iov[0])
+   ...
+   fun:start_thread
+}
+{
+   libcurl_exact
+   Memcheck:Param
+   sendmsg(mmsg[0].msg_hdr.msg_iov[0])
+   fun:sendmmsg
+   fun:send_dg
+   fun:__libc_res_nsend
+   fun:__libc_res_nquery
+   fun:__libc_res_nquerydomain
+   fun:__libc_res_nsearch
+   fun:_nss_dns_gethostbyname4_r
+   fun:gaih_inet
+   fun:getaddrinfo
+   obj:/usr/lib/x86_64-linux-gnu/libcurl.so.4.3.0
+   obj:/usr/lib/x86_64-linux-gnu/libcurl.so.4.3.0
+   obj:/usr/lib/x86_64-linux-gnu/libcurl.so.4.3.0
+   fun:start_thread
+}
+{
+   libcurl_exact2
+   Memcheck:Param
+   sendmsg(mmsg[0].msg_hdr.msg_iov[0])
+   fun:sendmmsg
+   fun:send_dg
+   fun:__libc_res_nsend
+   fun:__libc_res_nquery
+   fun:__libc_res_nquerydomain
+   fun:__libc_res_nsearch
+   obj:*
+   fun:gaih_inet
+   fun:getaddrinfo
+   obj:/usr/lib/x86_64-linux-gnu/libcurl.so.4.3.0
+   obj:/usr/lib/x86_64-linux-gnu/libcurl.so.4.3.0
+   obj:/usr/lib/x86_64-linux-gnu/libcurl.so.4.3.0
+   fun:start_thread
+}
+
+{
+   json_tokener_parse_exlh_table_insertValue8
+   Memcheck:Value8
+   ...
+   fun:json_tokener_parse_ex
+   ...
+}
+{
+   json_tokener_parse_exCond
+   Memcheck:Cond
+   ...
+   fun:json_tokener_parse_ex
+   ...
+}
+{
+   jsonlh_table_lookup_ex
+   Memcheck:Cond
+   ...
+   fun:lh_table_lookup_ex
+   ...
+}
+{
+   jsonleak
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:calloc
+   ...
+   fun:json_tokener_parse
+   ...
+}
+
+{
+   getaddrinfoval
+   Memcheck:Value8
+   ...
+   fun:getaddrinfo
+}
+{
+   getaddrinfocond
+   Memcheck:Cond
+   ...
+   fun:getaddrinfo
+}
+{
+   fuse
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:fuse_session_loop
+   ...
+}
+{
+   fusecaloc
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:calloc
+   ...
+   obj:/lib/x86_64-linux-gnu/libfuse.so.2.9.3
+   fun:main
+}
+
