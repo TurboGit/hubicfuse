@@ -38,6 +38,8 @@ int option_debug_level = 0;
 int option_curl_progress_state = 1;//1 to disable curl progress
 bool option_enable_chown = false;
 bool option_enable_chmod = false;
+bool option_enable_progressive_upload = false;
+bool option_enable_progressive_download = false;
 size_t file_buffer_size = 0;
 
 // needed to get correct GMT / local time, as it does not work
@@ -281,7 +283,6 @@ dir_cache *new_cache(const char *path)
   return result;
 }
 
-
 //todo: check if the program behaves ok  when free_dir 
 //is made on a folder that has an operation in progress
 void cloudfs_free_dir_list(dir_entry *dir_list)
@@ -301,7 +302,6 @@ void cloudfs_free_dir_list(dir_entry *dir_list)
 		free(de);
 	}
 }
-
 
 void dir_decache(const char *path)
 {
