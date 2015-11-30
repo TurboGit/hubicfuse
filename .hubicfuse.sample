@@ -1,0 +1,13 @@
+client_id = api_hubic_xxxxx
+client_secret = xxxxxx
+refresh_token = xxxx
+cache_timeout = 600
+temp_dir = /tmp/hubicfuse
+
+get_extended_metadata = true
+curl_verbose = false
+curl_progress_state = true
+cache_statfs_timeout = 15
+debug_level = 0
+enable_chmod = false
+enable_chown = false

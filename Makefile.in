@@ -11,8 +11,8 @@ prefix = @prefix@
 exec_prefix = @exec_prefix@
 bindir = $(DESTDIR)$(exec_prefix)/bin
 
-SOURCES=cloudfsapi.c cloudfuse.c
-HEADERS=cloudfsapi.h
+SOURCES=cloudfsapi.c cloudfuse.c commonfs.c
+HEADERS=cloudfsapi.h commonfs.h
 
 all: hubicfuse
 
@@ -29,7 +29,7 @@ hubicfuse: $(SOURCES) $(HEADERS)
 	$(CC) $(CFLAGS) -o hubicfuse $(SOURCES) $(LIBS) $(LDFLAGS)
 
 clean:
-	/bin/rm -f hubicfuse
+	/bin/rm -fr hubicfuse *.orig config.h *~ aclocal.m4 autom4te.cache
 
 distclean: clean
 	/bin/rm -f Makefile config.h config.status config.cache config.log \
@@ -38,6 +38,9 @@ distclean: clean
 mostlyclean: clean
 
 maintainer-clean: clean
+
+debug: CFLAGS += -g
+debug: hubicfuse
 
 config.h.in: stamp-h.in
 stamp-h.in: configure.in
@@ -52,3 +55,18 @@ Makefile: Makefile.in config.status
 config.status: configure
 	./config.status --recheck
 
+reformat:
+	astyle --style=allman \
+		--convert-tabs \
+		--indent=spaces=2 \
+		--lineend=linux \
+		--max-code-length=79 \
+		--pad-oper \
+		--pad-header \
+		--align-pointer=type \
+		--align-reference=name \
+		--break-closing-brackets \
+		--min-conditional-indent=0 \
+		--remove-brackets \
+		--remove-comment-prefix \
+		*.c *.h
