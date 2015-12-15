@@ -19,7 +19,7 @@ BUILDING:
         $ PKG_CONFIG_PATH=/lib64/pkgconfig ./configure
 
     For GNU/Debian or Ubuntu:
-        $ apt-get install gcc make curl libfuse-dev pkg-config \
+        $ sudo apt install gcc make curl libfuse-dev pkg-config \
             libcurl4-openssl-dev libxml2-dev libssl-dev libjson-c-dev \
             libmagic-dev
 
