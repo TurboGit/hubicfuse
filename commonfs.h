@@ -11,6 +11,7 @@ typedef enum { false, true } bool;
 #define DBG_LEVEL_EXT 1
 #define DBG_LEVEL_EXTALL 2
 #define INT_CHAR_LEN 16
+#define MD5_DIGEST_HEXA_STRING_LEN  (2 * MD5_DIGEST_LENGTH + 1)
 
 // utimens support
 #define HEADER_TEXT_MTIME "X-Object-Meta-Mtime"
