@@ -424,7 +424,7 @@ static int cfs_flush(const char* path, struct fuse_file_info* info)
       {
         rewind(fp);
         //calculate md5 hash, compare with cloud hash to determine if file content is changed
-        char md5_file_hash_str[MD5_DIGEST_LENGTH + 1] = "\0";
+        char md5_file_hash_str[MD5_DIGEST_HEXA_STRING_LEN] = "\0";
         file_md5(fp, md5_file_hash_str);
         dir_entry* de = check_path_info(path);
         if (de && de->md5sum != NULL && (!strcasecmp(md5_file_hash_str, de->md5sum)))
