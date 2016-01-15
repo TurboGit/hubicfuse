@@ -250,7 +250,7 @@ error()
 
 urlenc()
 {
-    echo "$1" | sed -e 's|%|%21|g' \
+    echo "$1" | sed -e 's|%|%25|g' \
                   -e 's|!|%21|g' \
                   -e 's|#|%23|g' \
                   -e 's|\$|%24|g' \
