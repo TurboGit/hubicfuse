@@ -158,19 +158,14 @@ int file_md5(FILE* file_handle, char* md5_file_str)
     debugf(DBG_LEVEL_NORM, KRED"file_md5: NULL file handle");
     return 0;
   }
-  if (file_buffer_size == 0)
-  {
-    debugf(DBG_LEVEL_NORM, KYEL"file_md5: 0 file buffer size, using default");
-    file_buffer_size = 1024;
-  }
   unsigned char c[MD5_DIGEST_LENGTH];
   int i;
   MD5_CTX mdContext;
   int bytes;
   char mdchar[3];//2 chars for md5 + null string terminator
-  unsigned char* data_buf = malloc(file_buffer_size * sizeof(unsigned char));
+  unsigned char* data_buf = malloc(1024 * sizeof(unsigned char));
   MD5_Init(&mdContext);
-  while ((bytes = fread(data_buf, 1, file_buffer_size, file_handle)) != 0)
+  while ((bytes = fread(data_buf, 1, 1024, file_handle)) != 0)
     MD5_Update(&mdContext, data_buf, bytes);
   MD5_Final(c, &mdContext);
   for (i = 0; i < MD5_DIGEST_LENGTH; i++)
