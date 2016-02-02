@@ -908,7 +908,7 @@ int main(int argc, char** argv)
     fprintf(stderr,
             "  segment_size=[Size to use when creating DLOs, default 1073741824]\n");
     fprintf(stderr,
-            "  segment_above=[File size at which to use segments, defult 2147483648]\n");
+            "  segment_above=[File size at which to use segments, default 2147483648]\n");
     fprintf(stderr,
             "  storage_url=[Storage URL for other tenant to view container]\n");
     fprintf(stderr,
