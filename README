@@ -94,7 +94,7 @@ BUGS/SHORTCOMINGS:
       "application/directory".
     * Cloud Files limits container and object listings to 10,000 items.
       cloudfuse won't list more than that many files in a single directory.
-	  * File copy progress when uploading does not work, progress is shown when file 
+	  * File copy progress when uploading does not work, progress is shown when file
 	    is copied in local cache, then upload operation happens at 100%
 
 Recent additions/fixes:
