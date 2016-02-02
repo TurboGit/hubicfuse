@@ -872,6 +872,21 @@ int main(int argc, char** argv)
   cache_timeout = atoi(options.cache_timeout);
   segment_size = atoll(options.segment_size);
   segment_above = atoll(options.segment_above);
+
+  // check consistency
+  const unsigned long FiveGb = (unsigned  long)5 * (unsigned long)(1 << 30);
+
+  if (segment_above > FiveGb)
+  {
+    printf ("A segment cannot be larger than 5Gb\n");
+    return 1;
+  }
+  if (segment_size > segment_above)
+  {
+    printf ("segment_size must be smaller than segment_above\n");
+    return 1;
+  }
+
   // this is ok since main is on the stack during the entire execution
   override_storage_url = options.storage_url;
   public_container = options.container;

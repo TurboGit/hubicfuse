@@ -81,6 +81,8 @@ USE AS NON-ROOT:
 
 BUGS/SHORTCOMINGS:
 
+    * A segment size is limited to 5Gb (this is not hubicfuse limit, but HubiC implementation).
+      So segment_above should never exceed 5Gb.
     * rename() doesn't work on directories (and probably never will).
     * When reading and writing files, it buffers them in a local temp file.
     * It keeps an in-memory cache of the directory structure, so it may not be
