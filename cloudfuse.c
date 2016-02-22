@@ -385,7 +385,7 @@ static int cfs_open(const char* path, struct fuse_file_info* info)
   of->flags = info->flags;
   info->fh = (uintptr_t)of;
   info->direct_io = 1;
-  info->nonseekable = 1;
+  info->nonseekable = 0;
   //FIXME: potential leak if free(of) not used? although if free(of) is used will generate bad descriptor errors
   debugf(DBG_LEVEL_NORM, KBLU "exit 6: cfs_open(%s)", path);
   return 0;
