@@ -97,7 +97,7 @@ int get_time_as_string(time_t time_t_val, long nsec, char* time_str,
   int str_len = strftime(time_str, time_str_len, HUBIC_DATE_FORMAT,
                          &time_val_tm);
   char nsec_str[TIME_CHARS];
-  sprintf(nsec_str, "%d", nsec);
+  sprintf(nsec_str, "%ld", nsec);
   strcat(time_str, nsec_str);
   return str_len + strlen(nsec_str);
 }
@@ -209,7 +209,9 @@ void get_file_path_from_fd(int fd, char* path, int size_path)
   /* Read out the link to our file descriptor. */
   sprintf(proc_path, "/proc/self/fd/%d", fd);
   memset(path, 0, size_path);
-  readlink(proc_path, path, size_path - 1);
+  if (readlink(proc_path, path, size_path - 1) == -1)
+    debugf(DBG_LEVEL_NORM, KRED
+           "get_file_path_from_fd: cannot open %d\n", fd);
 }
 
 //for file descriptor debugging
