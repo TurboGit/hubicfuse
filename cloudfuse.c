@@ -849,6 +849,12 @@ void initialise_options()
 
 int main(int argc, char** argv)
 {
+#if __x86_64__ || __ppc64__
+  const unsigned long MAX_SEGMENT_SIZE = (unsigned  long)5 * (unsigned long)(1 << 30);
+#else
+  const unsigned long MAX_SEGMENT_SIZE = (unsigned  long)2 * (unsigned long)(1 << 30);
+#endif
+
   if (debug)
     fprintf(stderr, "Starting hubicfuse on homedir %s!\n", get_home_dir());
 
@@ -874,9 +880,8 @@ int main(int argc, char** argv)
   segment_above = atoll(options.segment_above);
 
   // check consistency
-  const unsigned long FiveGb = (unsigned  long)5 * (unsigned long)(1 << 30);
 
-  if (segment_above > FiveGb)
+  if (segment_above > MAX_SEGMENT_SIZE)
   {
     printf ("A segment cannot be larger than 5Gb\n");
     return 1;
