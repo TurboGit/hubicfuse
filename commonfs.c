@@ -237,9 +237,10 @@ void debug_print_flags(int flags)
 void debug_print_descriptor(struct fuse_file_info* info)
 {
   char file_path[MAX_PATH_SIZE];
-  get_file_path_from_fd(info->fh, file_path, sizeof(file_path));
-  debugf(DBG_LEVEL_EXT, KCYN "descriptor localfile=[%s] fd=%d", file_path,
-         info->fh);
+  openfile* of = (openfile *)info->fh;
+  get_file_path_from_fd(of->fd, file_path, sizeof(file_path));
+  debugf(DBG_LEVEL_EXT, KCYN "descriptor localfile=[%s] fd=%lld", file_path,
+         of->fd);
   debug_print_flags(info->flags);
 }
 

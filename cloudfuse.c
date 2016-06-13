@@ -32,12 +32,6 @@ extern bool option_enable_chown;
 extern bool option_enable_chmod;
 extern size_t file_buffer_size;
 
-typedef struct
-{
-  int fd;
-  int flags;
-} openfile;
-
 static int cfs_getattr(const char* path, struct stat* stbuf)
 {
   debugf(DBG_LEVEL_NORM, KBLU "cfs_getattr(%s)", path);

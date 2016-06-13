@@ -80,6 +80,12 @@ typedef struct dir_cache
   struct dir_cache* next, *prev;
 } dir_cache;
 
+typedef struct
+{
+  int fd;
+  int flags;
+} openfile;
+
 time_t my_timegm(struct tm* tm);
 time_t get_time_from_str_as_gmt(char* time_str);
 time_t get_time_as_local(time_t time_t_val, char time_str[],
