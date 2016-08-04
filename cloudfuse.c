@@ -768,13 +768,15 @@ FuseOptions options =
 
 ExtraFuseOptions extra_options =
 {
+  .settings_filename = "",
   .get_extended_metadata = "false",
   .curl_verbose = "false",
   .cache_statfs_timeout = 0,
   .debug_level = 0,
   .curl_progress_state = "false",
   .enable_chown = "false",
-  .enable_chmod = "false"
+  .enable_chmod = "false",
+  .help = "false"
 };
 
 int parse_option(void* data, const char* arg, int key,
@@ -803,8 +805,21 @@ int parse_option(void* data, const char* arg, int key,
       sscanf(arg, " enable_chown = %[^\r\n ]", extra_options.enable_chown)
      )
     return 0;
+
+  if (!strncmp(arg, "settings_filename=", 18))
+  {
+    arg += 18;
+    strncpy(extra_options.settings_filename, arg, MAX_PATH_SIZE);
+    return 0;
+  }
+
+  // Detect help for help enrichment
+  if (!strcmp(arg, "-h") || !strcmp(arg, "--help"))
+    strcpy(extra_options.help, "true");
+
   if (!strcmp(arg, "-f") || !strcmp(arg, "-d") || !strcmp(arg, "debug"))
     cloudfs_debug(1);
+
   return 1;
 }
 
@@ -854,13 +869,20 @@ int main(int argc, char** argv)
 
   signal(SIGINT, interrupt_handler);
 
-  char settings_filename[MAX_PATH_SIZE] = "";
+  int return_code;
   FILE* settings;
   struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
+  char default_settings[MAX_PATH_SIZE];
 
-  snprintf(settings_filename, sizeof(settings_filename), "%s/.hubicfuse",
-           get_home_dir());
-  if ((settings = fopen(settings_filename, "r")))
+  // Default value for extra_options.settings_filename
+  snprintf(default_settings, MAX_PATH_SIZE, "%s/.hubicfuse", get_home_dir());
+  strncpy(extra_options.settings_filename, default_settings, MAX_PATH_SIZE);
+
+  // Reading FUSE options
+  fuse_opt_parse(&args, &options, NULL, parse_option);
+
+  // Reading hubiC settings
+  if ((settings = fopen(extra_options.settings_filename, "r")))
   {
     char line[OPTION_SIZE];
     while (fgets(line, sizeof(line), settings))
@@ -868,7 +890,6 @@ int main(int argc, char** argv)
     fclose(settings);
   }
 
-  fuse_opt_parse(&args, &options, NULL, parse_option);
   cache_timeout = atoi(options.cache_timeout);
   segment_size = atoll(options.segment_size);
   segment_above = atoll(options.segment_above);
@@ -896,7 +917,7 @@ int main(int argc, char** argv)
     fprintf(stderr,
             "Unable to determine client_id, client_secret or refresh_token.\n\n");
     fprintf(stderr, "These can be set either as mount options or in "
-            "a file named %s\n\n", settings_filename);
+            "a file named %s\n\n", default_settings);
     fprintf(stderr, "  client_id=[App's id]\n");
     fprintf(stderr, "  client_secret=[App's secret]\n");
     fprintf(stderr, "  refresh_token=[Get it running hubic_token]\n");
@@ -931,6 +952,7 @@ int main(int argc, char** argv)
   initialise_options();
   if (debug)
   {
+    fprintf(stderr, "settings_filename = %s\n", extra_options.settings_filename);
     fprintf(stderr, "debug_level = %d\n", option_debug_level);
     fprintf(stderr, "get_extended_metadata = %d\n", option_get_extended_metadata);
     fprintf(stderr, "curl_progress_state = %d\n", option_curl_progress_state);
@@ -987,5 +1009,14 @@ int main(int argc, char** argv)
   pthread_mutexattr_init(&mutex_attr);
   pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutex_init(&dcachemut, &mutex_attr);
-  return fuse_main(args.argc, args.argv, &cfs_oper, &options);
+  return_code = fuse_main(args.argc, args.argv, &cfs_oper, &options);
+
+  if (return_code > 0 && !strcmp(extra_options.help, "true"))
+  {
+    fprintf(stderr, "\nhubiC options:\n");
+    fprintf(stderr, "    -o settings_filename=FILE  use FILE as hubiC settings\n");
+    fprintf(stderr, "                               instead of %s\n", default_settings);
+  }
+
+  return return_code;
 }
