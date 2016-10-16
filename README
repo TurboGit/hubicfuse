@@ -42,11 +42,11 @@ USE:
     Optional variables:
         get_extended_metadata=[true/false, force download of additional file metadata like atime and mtime on first directory list]
         curl_verbose=[true/false, enable verbose output for curl HTTP requests]
-		curl_progress_state=[true/false, enable verbose progress output for curl HTTP requests. Used for debugging.]
+                curl_progress_state=[true/false, enable verbose progress output for curl HTTP requests. Used for debugging.]
         cache_statfs_timeout=[value in seconds, large timeout increases the file access speed]
         debug_level=[0 default, 1 extremely verbose for debugging purposes]
-		enable_chmod=[true/false, false by default, still experimental feature]
-		enable_chown=[true/false, false by default, still experimental feature]
+                enable_chmod=[true/false, false by default, still experimental feature]
+                enable_chown=[true/false, false by default, still experimental feature]
 
     client_id, client_secret can be retrieved from the hubic
     web interface: https://hubic.com/home/browser/developers/
@@ -79,6 +79,11 @@ USE AS NON-ROOT:
 
        $ fusermount -u [chemin]
 
+USE with rsync:
+
+    HubiC protocol has no support for renaming. So be sure to use the
+    --inplace option to avoid a second upload for every uploaded object.
+
 BUGS/SHORTCOMINGS:
 
     * A segment size is limited to 5Gb (this is not hubicfuse limit, but HubiC implementation).
@@ -94,8 +99,8 @@ BUGS/SHORTCOMINGS:
       "application/directory".
     * Cloud Files limits container and object listings to 10,000 items.
       cloudfuse won't list more than that many files in a single directory.
-	  * File copy progress when uploading does not work, progress is shown when file
-	    is copied in local cache, then upload operation happens at 100%
+    * File copy progress when uploading does not work, progress is shown when
+      file is copied in local cache, then upload operation happens at 100%
 
 Recent additions/fixes:
     * Support for atime, mtime, chmod, chown.
