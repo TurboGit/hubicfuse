@@ -69,13 +69,13 @@ USE:
     It is also possible to pass a custom hubicfuse settings file so that it is
     possible to mount multiple hubic accounts :
 
-        sudo hubicfuse /mnt/hubic1 -o noauto_cache,sync_read,allow_other,settings_file=/root/hubic/account1.settings
-        sudo hubicfuse /mnt/hubic2 -o noauto_cache,sync_read,allow_other,settings_file=/root/hubic/account2.settings
+        sudo hubicfuse /mnt/hubic1 -o noauto_cache,sync_read,allow_other,settings_filename=/root/hubic/account1.settings
+        sudo hubicfuse /mnt/hubic2 -o noauto_cache,sync_read,allow_other,settings_filename=/root/hubic/account2.settings
 
     And finaly, in /etc/fstab :
 
-        hubicfuse /mnt/hubic1 fuse user,noauto,settings_file=/root/hubic/account1.settings 0 0
-        hubicfuse /mnt/hubic2 fuse user,noauto,settings_file=/root/hubic/account2.settings 0 0
+        hubicfuse /mnt/hubic1 fuse user,noauto,settings_filename=/root/hubic/account1.settings 0 0
+        hubicfuse /mnt/hubic2 fuse user,noauto,settings_filename=/root/hubic/account2.settings 0 0
 
 USE AS NON-ROOT:
 
