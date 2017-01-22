@@ -409,7 +409,13 @@ static int cfs_flush(const char* path, struct fuse_file_info* info)
 
   if (of)
   {
-    update_dir_cache(path, cloudfs_file_size(of->fd), 0, 0);
+    // get the actual file size and truncate it. This ensures that if the new file is smaller
+    // than the previous one, the proper size is uploaded.
+    struct stat stbuf;
+    cfs_getattr(path, &stbuf);
+    update_dir_cache(path, stbuf.st_size, 0, 0);
+    ftruncate(of->fd, stbuf.st_size);
+
     if (of->flags & O_RDWR || of->flags & O_WRONLY)
     {
       FILE* fp = fdopen(dup(of->fd), "r");
@@ -486,7 +492,7 @@ static int cfs_rmdir(const char* path)
 static int cfs_ftruncate(const char* path, off_t size,
                          struct fuse_file_info* info)
 {
-  debugf(DBG_LEVEL_NORM, KBLU "cfs_ftruncate(%s)", path);
+  debugf(DBG_LEVEL_NORM, KBLU "cfs_ftruncate(%s) size=%lu", path, size);
   file_buffer_size = size;
   openfile* of = (openfile*)(uintptr_t)info->fh;
   if (ftruncate(of->fd, size))
@@ -543,8 +549,9 @@ static int cfs_fsync(const char* path, int idunno, struct fuse_file_info* info)
 
 static int cfs_truncate(const char* path, off_t size)
 {
-  debugf(DBG_LEVEL_NORM, "cfs_truncate(%s)", path);
+  debugf(DBG_LEVEL_NORM, "cfs_truncate(%s) size=%lu", path, size);
   cloudfs_object_truncate(path, size);
+  update_dir_cache(path, size, 0, 0);
   debugf(DBG_LEVEL_NORM, "exit: cfs_truncate(%s)", path);
   return 0;
 }
