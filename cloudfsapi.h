@@ -38,6 +38,7 @@ typedef struct options
 
 typedef struct extra_options
 {
+  char settings_filename[MAX_PATH_SIZE];
   char get_extended_metadata[OPTION_SIZE];
   char curl_verbose[OPTION_SIZE];
   char cache_statfs_timeout[OPTION_SIZE];
@@ -45,6 +46,7 @@ typedef struct extra_options
   char curl_progress_state[OPTION_SIZE];
   char enable_chmod[OPTION_SIZE];
   char enable_chown[OPTION_SIZE];
+  char help[OPTION_SIZE];
 } ExtraFuseOptions;
 
 void cloudfs_init(void);

@@ -66,6 +66,17 @@ USE:
     It also inherits a number of command-line arguments and mount options from
     the Fuse framework.  The "-h" argument should provide a summary.
 
+    It is also possible to pass a custom hubicfuse settings file so that it is
+    possible to mount multiple hubic accounts :
+
+        sudo hubicfuse /mnt/hubic1 -o noauto_cache,sync_read,allow_other,settings_filename=/root/hubic/account1.settings
+        sudo hubicfuse /mnt/hubic2 -o noauto_cache,sync_read,allow_other,settings_filename=/root/hubic/account2.settings
+
+    And finaly, in /etc/fstab :
+
+        hubicfuse /mnt/hubic1 fuse user,noauto,settings_filename=/root/hubic/account1.settings 0 0
+        hubicfuse /mnt/hubic2 fuse user,noauto,settings_filename=/root/hubic/account2.settings 0 0
+
 USE AS NON-ROOT:
 
     Add the user into the fuse group:
@@ -113,6 +124,7 @@ Recent additions/fixes:
     * Debugging support for http progress (track upload / download speed etc.)
     * Reduced traffic, skips file uploads to cloud if content does not change (using md5sum compare)
     * Major code refactoring, code documentation, extensive debugging, additional config options
+    * Support for custom hubicfuse settings file in order to mount multiple accounts
 
 AWESOME CONTRIBUTORS:
 
@@ -127,6 +139,7 @@ AWESOME CONTRIBUTORS:
     * justinb                            https://github.com/justinsb
     * Matt Greenway                      https://github.com/LabAdvComp
     * Dan Cristian                       https://github.com/dan-cristian
+    * Nicolas Cailleaux                  https://github.com/nikokio
 
 Thanks, and I hope you find it useful.
 
