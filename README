@@ -23,21 +23,33 @@ BUILDING:
             libcurl4-openssl-dev libxml2-dev libssl-dev libjson-c-dev \
             libmagic-dev
 
-        $ ./configure
+  If you don't have git installed :
+    sudo apt-get install git
+  
+  Download hubicfuse from git
+    cd $HOME
+    sudo git clone https://github.com/TurboGit/hubicfuse.git
 
-    Then just compile and install:
+  Install
+    cd $HOME/hubicfuse
+    sudo ./configure
+    sudo make
+    sudo make install
 
-        make
-        sudo make install
 
 USE:
 
-    Your Hubic Cloud configuration can be placed in a file named
-    $HOME/.hubicfuse. All the following variables are required:
-
-        client_id=[Hubic client id for the registered application]
-        client_secret=[Hubic client secret for the registered application]
-        refresh_token=[A refresh token you got from the script]
+  Retreive a refresh_token
+    cd /$HOME/hubicfuse
+    sudo ./hubic_token
+    answer the questions, values in () are not default value, you have to enter them
+  
+  Create $HOME/.hubicfuse file (Hubic Cloud configuration file)
+    cd /$HOME
+    sudo nano .hubicfuse
+      client_id=[Hubic client id for the registered application]
+      client_secret=[Hubic client secret for the registered application]
+      refresh_token=[A refresh token you got from the script]
 
     Optional variables:
         get_extended_metadata=[true/false, force download of additional file metadata like atime and mtime on first directory list]
@@ -51,17 +63,14 @@ USE:
     client_id, client_secret can be retrieved from the hubic
     web interface: https://hubic.com/home/browser/developers/
 
-    The refresh_token can be obtained running the script provided (hubic_token)
-    or with any other method you like if you follow the example at
-    https://api.hubic.com
+    The refresh_token can also be obtained from https://api.hubic.com
 
-    Then you can call hubicfuse:
+  Mount hubic
+    mkdir /mnt/hubic
+    sudo hubicfuse /mnt/hubic -o noauto_cache,sync_read,allow_other
 
-        sudo hubicfuse /mnt/hubic -o noauto_cache,sync_read,allow_other
-
-    And finaly, it can be set in /etc/fstab:
-
-        hubicfuse /mnt/hubic fuse user,noauto 0 0
+  And finaly, it can be set in /etc/fstab
+    hubicfuse /mnt/hubic fuse user,noauto 0 0
 
     It also inherits a number of command-line arguments and mount options from
     the Fuse framework.  The "-h" argument should provide a summary.
