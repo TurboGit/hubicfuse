@@ -1,0 +1,145 @@
+# HubicFuse
+
+A FUSE application which provides access to hubiC's cloud files via a mount-point.
+
+This version contains support for DLO, symlinks and support to see other tenant's containers.  
+Those features are coming from https://github.com/LabAdvComp/cloudfuse
+
+### BUILDING
+
+You'll need libcurl, fuse, libssl, and libxml2 (and probably their development packages) installed to build it.
+
+For CentOS and other RedHat-based systems:
+
+    yum install gcc make fuse-devel curl-devel libxml2-devel \
+        openssl-devel json-c-devel file-devel
+
+    PKG_CONFIG_PATH=/lib64/pkgconfig ./configure
+
+For Debian GNU/Linux and Ubuntu:
+
+    sudo apt install gcc make curl libfuse-dev pkg-config \
+        libcurl4-openssl-dev libxml2-dev libssl-dev libjson-c-dev libmagic-dev
+
+    ./configure
+
+Then just compile and install:
+
+    make
+    sudo make install
+
+### USAGE
+
+Your hubiC Cloud configuration can be placed in a file named `$HOME/.hubicfuse`.
+All the following variables are required:
+
+    client_id=[hubiC client id for the registered application]
+    client_secret=[hubiC client secret for the registered application]
+    refresh_token=[A refresh token you got from the script]
+
+Optional variables:
+
+    get_extended_metadata=[true/false, force download of additional file metadata like atime and mtime on first directory list]
+    curl_verbose=[true/false, enable verbose output for curl HTTP requests]
+    curl_progress_state=[true/false, enable verbose progress output for curl HTTP requests. Used for debugging.]
+    cache_statfs_timeout=[value in seconds, large timeout increases the file access speed]
+    debug_level=[0 default, 1 extremely verbose for debugging purposes]
+    enable_chmod=[true/false, false by default, still experimental feature]
+    enable_chown=[true/false, false by default, still experimental feature]
+
+`client_id` and `client_secret` can be retrieved from
+the [hubiC web interface](https://hubic.com/home/browser/developers/)
+
+The `refresh_token` can be obtained running the script provided (`hubic_token`)
+or with any other method you like if you follow the example at https://api.hubic.com/
+
+Then you can call hubicfuse:
+
+    sudo hubicfuse /mnt/hubic -o noauto_cache,sync_read,allow_other
+
+And finaly, it can be set in /etc/fstab:
+
+    hubicfuse /mnt/hubic fuse user,noauto 0 0
+
+It also inherits a number of command-line arguments and mount options from
+the Fuse framework.  The "-h" argument should provide a summary.
+
+It is also possible to pass a custom hubicfuse settings file so that it is
+possible to mount multiple hubiC accounts:
+
+    sudo hubicfuse /mnt/hubic1 -o noauto_cache,sync_read,allow_other,settings_filename=/root/hubic/account1.settings
+    sudo hubicfuse /mnt/hubic2 -o noauto_cache,sync_read,allow_other,settings_filename=/root/hubic/account2.settings
+
+And finaly, in /etc/fstab :
+
+    hubicfuse /mnt/hubic1 fuse user,noauto,settings_filename=/root/hubic/account1.settings 0 0
+    hubicfuse /mnt/hubic2 fuse user,noauto,settings_filename=/root/hubic/account2.settings 0 0
+
+### USAGE AS NON-ROOT
+
+Add the user into the fuse group:
+
+   sudo usermod -a -G fuse [username]
+
+Mount using the above command without the sudo. The `.hubicfuse` file is searched in the user's home.
+
+To unmount use:
+
+   fusermount -u [chemin]
+
+### USAGE WITH RSYNC
+
+hubiC protocol has no support for renaming. So be sure to use the
+`--inplace` option to avoid a second upload for every uploaded object.
+
+### BUGS AND SHORTCOMINGS
+
+    * A segment size is limited to 5Gb (this is not hubicfuse limit, but hubiC implementation).
+      So segment_above should never exceed 5Gb.
+    * rename() doesn't work on directories (and probably never will).
+    * When reading and writing files, it buffers them in a local temp file.
+    * It keeps an in-memory cache of the directory structure, so it may not be
+      usable for large file systems.  Also, files added by other applications
+      will not show up until the cache expires.
+    * The root directory can only contain directories, as these are mapped to
+      containers in cloudfiles.
+    * Directory entries are created as empty files with the content-type
+      "application/directory".
+    * Cloud Files limits container and object listings to 10,000 items.
+      cloudfuse won't list more than that many files in a single directory.
+    * File copy progress when uploading does not work, progress is shown when
+      file is copied in local cache, then upload operation happens at 100%
+
+### RECENT ADDITIONS AND FIXES
+
+    * Support for atime, mtime, chmod, chown.
+    * Large files (segmented) have correct size listed (was 0 before).
+    * Multiple speed improvements, minimised the number of HTTP calls and added more caching features.
+    * Fixed many segmentation faults.
+    * Cached files are deleted on cache expiration when using a custom temp folder.
+    * Files copied have attributes preserved.
+    * Working well with rsync due to mtime support and proper copy operations.
+    * Debugging support for http progress (track upload / download speed etc.)
+    * Reduced traffic, skips file uploads to cloud if content does not change (using md5sum compare)
+    * Major code refactoring, code documentation, extensive debugging, additional config options
+    * Support for custom hubicfuse settings file in order to mount multiple accounts
+
+AWESOME CONTRIBUTORS
+
+    * Pascal Obry                        https://github.com/TurboGit
+    * Tim Dysinger                       https://github.com/dysinger
+    * Chris Wedgwood                     https://github.com/cwedgwood
+    * Nick Craig-Wood                    https://github.com/ncw
+    * Dillon Amburgey                    https://github.com/dillona
+    * Manfred Touron                     https://github.com/moul
+    * David Brownlee                     https://github.com/abs0
+    * Mike Lundy                         https://github.com/novas0x2a
+    * justinb                            https://github.com/justinsb
+    * Matt Greenway                      https://github.com/LabAdvComp
+    * Dan Cristian                       https://github.com/dan-cristian
+    * Nicolas Cailleaux                  https://github.com/nikokio
+
+Thanks, and I hope you find it useful.
+
+Pascal Obry
+<pascal@obry.net>
