@@ -336,7 +336,7 @@ if [ $ERR -ne 0 ]; then
     echo "$ERR_CNX" >&2
     exit $ERR
 else
-    if [ -z "$( printf '%s' "${out}" | sed -n '/1/h;/HTTP\/1\.1 301/p;q' )" ]; then
+    if [ -z "$( printf '%s' "${out}" | grep 'HTTP\/1\.1 301' )" ]; then
         error "${ERR_UNEXPECTED}" 'y'
     fi
 fi
