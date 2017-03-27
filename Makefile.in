@@ -2,6 +2,7 @@
 .SUFFIXES: .c .o
 
 CC = @CC@
+CPPFLAGS = @CPPFLAGS@
 CFLAGS = @CFLAGS@ @XML_CFLAGS@ @CURL_CFLAGS@ @FUSE_CFLAGS@ @OPENSSL_CFLAGS@ @JSON_CFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@ @XML_LIBS@ @CURL_LIBS@ @FUSE_LIBS@ @OPENSSL_LIBS@ @JSON_LIBS@ -lmagic
@@ -26,7 +27,7 @@ $(bindir):
 	$(MKDIR_P) $(bindir)
 
 hubicfuse: $(SOURCES) $(HEADERS)
-	$(CC) $(CFLAGS) -o hubicfuse $(SOURCES) $(LIBS) $(LDFLAGS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o hubicfuse $(SOURCES) $(LIBS) $(LDFLAGS)
 
 clean:
 	/bin/rm -fr hubicfuse *.orig config.h *~ aclocal.m4 autom4te.cache
