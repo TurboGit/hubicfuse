@@ -1,5 +1,6 @@
 #ifndef _COMMONFS_H
 #define _COMMONFS_H
+#define FUSE_USE_VERSION 30
 #include <fuse.h>
 
 typedef enum { false, true } bool;

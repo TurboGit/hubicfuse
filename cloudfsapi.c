@@ -23,6 +23,7 @@
 #include "commonfs.h"
 #include "cloudfsapi.h"
 #include "config.h"
+#define FUSE_USE_VERSION 30
 #include <fuse.h>
 
 #define RHEL5_LIBCURL_VERSION 462597

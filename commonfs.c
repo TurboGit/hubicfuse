@@ -17,6 +17,7 @@
 #include <sys/syscall.h>
 #include <openssl/md5.h>
 #include <pwd.h>
+#define FUSE_USE_VERSION 30
 #include <fuse.h>
 #include <limits.h>
 #include <curl/curl.h>
