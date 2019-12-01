@@ -683,14 +683,26 @@ void run_segment_threads(const char* method, int segments, int full_segments,
                          FILE* fp, char* seg_base, int size_of_segments)
 {
   debugf(DBG_LEVEL_EXT, "run_segment_threads(%s)", method);
-  char file_path[PATH_MAX] = { 0 };
   struct segment_info* info = (struct segment_info*)
                               malloc(segments * sizeof(struct segment_info));
 
   pthread_t* threads = (pthread_t*)malloc(segments * sizeof(pthread_t));
-#ifdef __linux__
-  snprintf(file_path, PATH_MAX, "/proc/self/fd/%d", fileno(fp));
+#if defined(__linux__) || defined(__GNU__)
+  int len, fno, val;
+  char folder[] = "/proc/self/fd/";
+  len = strlen(folder);
+  fno = fileno(fp);
+
+  val = fno;  //Here, I calculate the full length including the file descriptor casted to string
+  while (val >= 1){
+    len++;
+    val = val / 10;
+  }
+  char *file_path = (char *)malloc((len+1) * sizeof(char)); //Allocation done
+  
+  snprintf(file_path, len, "%s%d", folder, fno);
   debugf(DBG_LEVEL_NORM, "On run segment filepath=%s", file_path);
+  free(file_path);
 #else
   //TODO: I haven't actually tested this
   if (fcntl(fileno(fp), F_GETPATH, file_path) == -1)
