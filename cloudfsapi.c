@@ -700,9 +700,14 @@ void run_segment_threads(const char* method, int segments, int full_segments,
   }
   char *file_path = (char *)malloc((len+1) * sizeof(char)); //Allocation done
   
-  snprintf(file_path, len, "%s%d", folder, fno);
-  debugf(DBG_LEVEL_NORM, "On run segment filepath=%s", file_path);
-  free(file_path);
+  if (file_path != NULL){ 
+    snprintf(file_path, len, "%s%d", folder, fno);
+    debugf(DBG_LEVEL_NORM, "On run segment filepath=%s", file_path);
+    free(file_path);
+  } else
+  fprintf(stderr, "failed allocation of memory\n");
+  
+
 #else
   //TODO: I haven't actually tested this
   if (fcntl(fileno(fp), F_GETPATH, file_path) == -1)
