@@ -34,6 +34,12 @@
 // and try some values on your own system if you want the best performance
 #define DISK_BUFF_SIZE 32768
 
+long segment_size;
+long segment_above;
+
+char* override_storage_url;
+char* public_container;
+
 static char storage_url[MAX_URL_SIZE];
 static char storage_token[MAX_HEADER_SIZE];
 static pthread_mutex_t pool_mut;

@@ -66,11 +66,11 @@ struct segment_info
   const char* method;
 };
 
-long segment_size;
-long segment_above;
+extern long segment_size;
+extern long segment_above;
 
-char* override_storage_url;
-char* public_container;
+extern char* override_storage_url;
+extern char* public_container;
 
 int file_is_readable(const char* fname);
 const char* get_file_mimetype ( const char* filename );
