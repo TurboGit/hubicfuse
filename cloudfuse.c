@@ -73,11 +73,17 @@ static int cfs_getattr(const char* path, struct stat* stbuf)
   }
   // change needed due to utimens
   stbuf->st_atime = de->atime.tv_sec;
-  stbuf->st_atim.tv_nsec = de->atime.tv_nsec;
   stbuf->st_mtime = de->mtime.tv_sec;
-  stbuf->st_mtim.tv_nsec = de->mtime.tv_nsec;
   stbuf->st_ctime = de->ctime.tv_sec;
+#ifdef __APPLE__
+  stbuf->st_atimespec.tv_nsec = de->atime.tv_nsec;
+  stbuf->st_mtimespec.tv_nsec = de->mtime.tv_nsec;
+  stbuf->st_ctimespec.tv_nsec = de->ctime.tv_nsec;
+#else
+  stbuf->st_atim.tv_nsec = de->atime.tv_nsec;
+  stbuf->st_mtim.tv_nsec = de->mtime.tv_nsec;
   stbuf->st_ctim.tv_nsec = de->ctime.tv_nsec;
+#endif
   char time_str[TIME_CHARS] = "";
   get_timespec_as_str(&(de->atime), time_str, sizeof(time_str));
   debugf(DBG_LEVEL_EXT, KCYN"cfs_getattr: atime=[%s]", time_str);
