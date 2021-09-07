@@ -106,6 +106,7 @@ static CURL* get_connection(const char* path)
   if (!curl)
   {
     debugf(DBG_LEVEL_NORM, KRED"curl alloc failed");
+    pthread_mutex_unlock(&pool_mut);
     abort();
   }
   pthread_mutex_unlock(&pool_mut);
