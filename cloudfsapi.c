@@ -1661,9 +1661,9 @@ int cloudfs_connect()
   json_object* o;
 
   if (!safe_json_string(json_obj, access_token, "access_token"))
-    return 0;
+    goto error;
   if (!safe_json_string(json_obj, token_type, "token_type"))
-    return 0;
+    goto error;
 
   found = json_object_object_get_ex(json_obj, "expires_in", &o);
   expire_sec = json_object_get_int(o);
@@ -1692,11 +1692,11 @@ int cloudfs_connect()
   free(json_str);
 
   if (!safe_json_string(json_obj, token, "token"))
-    return 0;
+    goto error;
   if (!safe_json_string(json_obj, endpoint, "endpoint"))
-    return 0;
+    goto error;
   if (!safe_json_string(json_obj, expires, "expires"))
-    return 0;
+    goto error;
 
   /* set the global storage_url and storage_token, the only parameters needed for swift */
   strcpy (storage_url, endpoint);
@@ -1706,4 +1706,8 @@ int cloudfs_connect()
   pthread_mutex_unlock(&pool_mut);
   return (response >= 200 && response < 300 && storage_token[0]
           && storage_url[0]);
+
+ error:
+  pthread_mutex_unlock(&pool_mut);
+  return 0;
 }
